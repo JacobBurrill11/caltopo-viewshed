@@ -1,12 +1,12 @@
 # CalTopo Viewshed, From Scratch
 
-[CalTopo](https://caltopo.com) already has a built-in viewshed layer — this project isn't trying to replace it. I wanted to understand how one actually works, so I rebuilt the feature myself: fetch real elevation data, implement the visibility algorithm from scratch (no GIS viewshed libraries), and export the result as a layer that imports directly into CalTopo.
+[CalTopo](https://caltopo.com) already has a built-in custom viewshed layer — this project isn't trying to replace it. I wanted to understand how one actually works, so I rebuilt the feature myself: fetch real elevation data, implement the visibility algorithm from scratch (no GIS viewshed libraries), and export the result as a layer that imports directly into CalTopo.
 
 A **viewshed** is the set of terrain visible from a given point, accounting for the ground blocking your view of anything behind it.
 
 ## Validation
 
-The real test: does this independently-written algorithm agree with CalTopo's own built-in tool for the same point? I generated a viewshed with this code, imported it into CalTopo as an overlay (red outline), then turned on CalTopo's native viewshed for the same observer point (purple fill) on top of it.
+The real test: does this independently-written algorithm agree with CalTopo's own built-in tool for the same point? I generated a viewshed with this code, imported it into CalTopo as an overlay (red outline), then turned on CalTopo's native viewshed for the same observer point (blue fill) on top of it.
 
 <img src="images/caltopo_validation.jpg" alt="CalTopo built-in viewshed (purple) overlaid with this project's output (red outline), showing near-exact agreement" width="250">
 
@@ -29,7 +29,7 @@ The two agree almost exactly.
 
 <img src="images/test_point_viewshed.jpg" alt="Small, irregular viewshed from a point partway down a slope" width="350">
 
-This isn't a bug — it's a real property of horizon-sweep viewsheds. A small terrain bump close to the observer can cast an almost perfectly flat sightline that dominates the horizon for the rest of that ray, hiding everything behind it even if the ground drops thousands of feet further out. I confirmed this by tracing the raw per-pixel elevation profile in several directions from the point:
+Although close to the peak of Mt. Whitney, this point near trail camp has a lot less visible terrain. A small terrain bump close to the observer can cast an almost perfectly flat sightline that dominates the horizon for the rest of that ray, hiding everything behind it even if the ground drops thousands of feet further out. I confirmed this by tracing the raw per-pixel elevation profile in several directions from the point:
 
 <img src="images/terrain_profile_debug.jpg" alt="Raw terrain elevation profile in multiple directions from the observer, showing a nearby high point dominating the horizon" width="500">
 
