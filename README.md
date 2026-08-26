@@ -68,6 +68,17 @@ python3 viewshed.py
 
 This writes a debug PNG (DEM + visibility overlay) and a `.geojson` file ready to import into CalTopo.
 
+### Using a different location
+
+Nothing about the algorithm is specific to Mount Whitney — it operates on whatever DEM array, affine transform, and CRS it's handed. To point it somewhere else:
+
+- Fetch a new DEM patch centered on the new observer point (same `exportImage` call, new `bbox`)
+- Reproject to the correct UTM zone for that longitude — this project hardcodes `EPSG:32611` (UTM 11N), which is only correct for the Sierra Nevada
+- Update `DEM_PATH`, `OBSERVER_LON`, and `OBSERVER_LAT` in `viewshed.py`
+- Make sure `MAX_RADIUS_M` still fits inside the fetched DEM's extent, so rays don't run off the edge
+
+One real constraint: **USGS 3DEP only covers the United States.** Outside the US, swap in a global DEM source instead (e.g. Copernicus GLO-30 or SRTM) — the algorithm doesn't care where the elevation data came from, only that it gets an array, transform, and CRS in the same shape.
+
 ## Ideas for extending this
 
 - **Viewshed animation along a route** — given a hiking route (a line or polygon), generate an animation showing how the viewshed changes step by step along the trail.
