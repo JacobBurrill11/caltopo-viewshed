@@ -8,7 +8,7 @@ A **viewshed** is the set of terrain visible from a given point, accounting for 
 
 The real test: does this independently-written algorithm agree with CalTopo's own built-in tool for the same point? I generated a viewshed with this code, imported it into CalTopo as an overlay (red outline), then turned on CalTopo's native viewshed for the same observer point (purple fill) on top of it.
 
-<img src="images/caltopo_validation.jpg" alt="CalTopo built-in viewshed (purple) overlaid with this project's output (red outline), showing near-exact agreement" width="350">
+<img src="images/caltopo_validation.jpg" alt="CalTopo built-in viewshed (purple) overlaid with this project's output (red outline), showing near-exact agreement" width="250">
 
 The two agree almost exactly.
 
@@ -23,15 +23,15 @@ The two agree almost exactly.
 
 **Mount Whitney summit** — a true summit gives the classic viewshed shape: a wide open fan toward the Owens Valley (nothing nearby to block it), plus thin sightlines along the crest to other peaks poking above the ridgeline.
 
-<img src="images/whitney_summit_viewshed.jpg" alt="Fan-shaped viewshed from Mount Whitney's summit" width="500">
+<img src="images/whitney_summit_viewshed.jpg" alt="Fan-shaped viewshed from Mount Whitney's summit" width="350">
 
 **A mid-slope point** — same algorithm, a different kind of location, and a much smaller result:
 
-<img src="images/test_point_viewshed.jpg" alt="Small, irregular viewshed from a point partway down a slope" width="500">
+<img src="images/test_point_viewshed.jpg" alt="Small, irregular viewshed from a point partway down a slope" width="350">
 
 This isn't a bug — it's a real property of horizon-sweep viewsheds. A small terrain bump close to the observer can cast an almost perfectly flat sightline that dominates the horizon for the rest of that ray, hiding everything behind it even if the ground drops thousands of feet further out. I confirmed this by tracing the raw per-pixel elevation profile in several directions from the point:
 
-<img src="images/terrain_profile_debug.jpg" alt="Raw terrain elevation profile in multiple directions from the observer, showing a nearby high point dominating the horizon" width="600">
+<img src="images/terrain_profile_debug.jpg" alt="Raw terrain elevation profile in multiple directions from the observer, showing a nearby high point dominating the horizon" width="500">
 
 Summits get the expansive views; points partway down a slope often don't, even at high absolute elevation — the algorithm is just reporting what's actually true about that piece of terrain.
 
