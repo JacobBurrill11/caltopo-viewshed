@@ -83,7 +83,7 @@ One real constraint: **USGS 3DEP only covers the United States.** Outside the US
 
 Building on the single-point tool, [`route_animation.py`](route_animation.py) samples a hiking route at fixed distance intervals (0.5 miles by default) and computes a full viewshed at every sample point — same algorithm, same validation, just run repeatedly along a trail. Rather than a passive animation, the output drives a small interactive page: drag a slider and watch the visible area change as the position moves along the route, similar to CalTopo's own elevation-profile scrubber.
 
-**[Try it live](https://jacobburrill11.github.io/caltopo-viewshed/route_viewshed_viewer.html)**
+**[Try it live](https://jacobburrill11.github.io/caltopo-viewshed/route_viewshed_viewer.html)** — the demo is a real ~1.5 mile trail near Lake Tahoe ([`examples/cinder_cone_trail.gpx`](examples/cinder_cone_trail.gpx)), sampled every 0.25 miles.
 
 How it works:
 
