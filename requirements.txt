@@ -1,4 +1,5 @@
 rasterio==1.5.1
-numpy==1.26.4
+numpy==2.5.2
 shapely==2.1.2
 matplotlib==3.11.1
+gpxpy==1.6.2
