@@ -113,7 +113,38 @@ def compute_required_bbox(route_lonlat, max_radius_m, utm_crs=UTM_CRS):
     Returns a dict: {"min_lon", "min_lat", "max_lon", "max_lat",
     "est_width_px", "est_height_px"}.
     """
-    raise NotImplementedError
+    lons = [p[0] for p in route_lonlat]
+    lats = [p[1] for p in route_lonlat]
+    xs, ys = warp_transform("EPSG:4326", utm_crs, lons, lats)
+    max_x, min_x = max(xs), min(xs)
+    max_y, min_y = max(ys), min(ys)
+    min_x -= max_radius_m
+    max_x += max_radius_m
+    min_y -= max_radius_m
+    max_y += max_radius_m
+    top_left = warp_transform(utm_crs, "EPSG:4326", [min_x], [max_y])
+    bottom_right = warp_transform(utm_crs, "EPSG:4326", [max_x], [min_y])
+    top_right = warp_transform(utm_crs, "EPSG:4326", [max_x], [max_y])
+    bottom_left = warp_transform(utm_crs, "EPSG:4326", [min_x], [min_y])
+    min_lon = min(top_left[0][0], bottom_right[0][0], top_right[0][0], bottom_left[0][0])
+    max_lon = max(top_left[0][0], bottom_right[0][0], top_right[0][0], bottom_left[0][0])
+    min_lat = min(top_left[1][0], bottom_right[1][0], top_right[1][0], bottom_left[1][0])
+    max_lat = max(top_left[1][0], bottom_right[1][0], top_right[1][0], bottom_left[1][0])
+    est_width_px = (max_x - min_x) / 16.6
+    est_height_px = (max_y - min_y) / 16.6
+    if (est_width_px) > 2048 or (est_height_px) > 2048:
+        print("WARNING: route + buffer exceeds ~2048px in at least one dimension; "
+              "DEM export may fail. Consider a smaller --max-radius or mosaicking "
+              "multiple DEM tiles (not implemented).")
+    return {
+        "min_lon": min_lon,
+        "min_lat": min_lat,
+        "max_lon": max_lon,
+        "max_lat": max_lat,
+        "est_width_px": est_width_px,
+        "est_height_px": est_height_px
+    }
+    
 
 
 def route_to_utm_linestring(route_lonlat, crs):
@@ -253,7 +284,7 @@ def export_route_viewsheds(dem, transform, crs, pixel_size_m, nodata,
 
 def run_bbox(args):
     route_lonlat = load_route_points(args.gpx)
-    bbox = compute_required_bbox(route_lonlat, args.max_radius, UTM_CRS)
+    bbox = compute_required_bbox(route_lonlat, args.max_radius, args.utm_crs)
 
     print(f"bbox: {bbox['min_lon']},{bbox['min_lat']},{bbox['max_lon']},{bbox['max_lat']}")
     print(f"estimated size: {bbox['est_width_px']} x {bbox['est_height_px']} px")
@@ -287,6 +318,11 @@ def main():
     bbox_parser = subparsers.add_parser("bbox", help="print the DEM bbox needed for a route")
     bbox_parser.add_argument("--gpx", default=GPX_PATH)
     bbox_parser.add_argument("--max-radius", type=float, default=MAX_RADIUS_M)
+    bbox_parser.add_argument("--utm-crs", default=UTM_CRS,
+                              help="UTM zone EPSG code for the route's location, e.g. EPSG:32610 "
+                                   "for Tahoe vs EPSG:32611 for the Sierra default. Get this wrong "
+                                   "and the bbox will be silently distorted, worse the further the "
+                                   "route is from the zone's central meridian.")
     bbox_parser.set_defaults(func=run_bbox)
 
     export_parser = subparsers.add_parser("export", help="compute viewsheds along a route")
