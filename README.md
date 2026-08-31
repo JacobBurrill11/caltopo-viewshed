@@ -1,4 +1,4 @@
-# CalTopo Viewshed, From Scratch
+# CalTopo Viewshed, From Scratch + Route Viewshed Animation App
 
 [CalTopo](https://caltopo.com) already has a built-in custom viewshed layer — this project isn't trying to replace it. I wanted to understand how one actually works, so I rebuilt the feature myself: fetch real elevation data, implement the visibility algorithm from scratch (no GIS viewshed libraries), and export the result as a layer that imports directly into CalTopo.
 
