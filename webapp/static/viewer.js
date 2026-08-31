@@ -30,7 +30,7 @@ function showSample(i) {
     ` — ${Math.round(sample.properties.elevation_m)} m elevation`;
 }
 
-fetch('/results/current/route_viewsheds.geojson')
+fetch(`/results/${window.ROUTE_ID}/route_viewsheds.geojson`)
   .then(r => r.json())
   .then(fc => {
     const routeFeature = fc.features.find(f => f.properties && f.properties.name === 'route');
