@@ -94,6 +94,23 @@ def load_route_points(gpx_path):
     return points
 
 
+def utm_crs_from_lonlat(lon, lat):
+    """
+    Return the EPSG code for the UTM zone containing (lon, lat).
+
+    Standard formula: zones are 6 degrees wide starting at -180; northern
+    zones are EPSG:326XX, southern zones EPSG:327XX. Good for any point in
+    the continental US (no antimeridian edge case applies domestically).
+
+    Lets the DEM fetch/reprojection pipeline pick the correct zone
+    automatically instead of requiring a human to know and supply it via
+    --utm-crs.
+    """
+    zone = int((lon + 180) // 6) + 1
+    epsg = 32600 + zone if lat >= 0 else 32700 + zone
+    return f"EPSG:{epsg}"
+
+
 def compute_required_bbox(route_lonlat, max_radius_m, utm_crs=UTM_CRS):
     """
     Compute the lon/lat bounding box needed to fetch a DEM that covers the

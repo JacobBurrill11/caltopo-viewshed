@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Route Viewshed Viewer</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  html, body { margin: 0; height: 100%; font-family: -apple-system, sans-serif; }
+  #map { position: absolute; top: 0; bottom: 64px; left: 0; right: 0; }
+  #controls {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 64px;
+    background: #1b1b1b; color: #eee; display: flex; align-items: center;
+    padding: 0 16px; gap: 16px; box-sizing: border-box;
+  }
+  #controls input[type=range] { flex: 1; }
+  #readout { min-width: 220px; font-size: 14px; white-space: nowrap; }
+  #status { position: absolute; top: 10px; left: 50px; z-index: 1000; background: white;
+    padding: 6px 10px; border-radius: 4px; font-size: 13px; box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+  #back { position: absolute; top: 10px; right: 10px; z-index: 1000; background: white;
+    padding: 6px 12px; border-radius: 4px; font-size: 13px; text-decoration: none; color: #1b1b1b;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+<div id="status">Loading route_viewsheds.geojson...</div>
+<a id="back" href="/">&larr; New route</a>
+<div id="controls">
+  <span id="readout">--</span>
+  <input type="range" id="slider" min="0" max="0" value="0" step="1" disabled>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='viewer.js') }}"></script>
+
+</body>
+</html>
