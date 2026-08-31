@@ -181,7 +181,7 @@ def sample_distances(line, step_m):
     return distances
 
 
-def observer_from_distance(dem, transform, crs, nodata, line, distance):
+def observer_from_distance(dem, transform, crs, nodata, line, distance, eye_height_m=EYE_HEIGHT_M):
     """
     Interpolate the point at `distance` along `line`, look up its ground
     elevation via bilinear interpolation (not a hard cell-snap), and
@@ -194,6 +194,10 @@ def observer_from_distance(dem, transform, crs, nodata, line, distance):
 
     Returns None (with a printed warning) if the point falls on nodata or
     outside the DEM's bounds, so the caller can skip that sample.
+
+    `eye_height_m` is added to the ground elevation to get the observer's
+    eye height at each sample point (defaults to EYE_HEIGHT_M, but callers
+    can override it, e.g. from a CLI flag).
     """
     pt = line.interpolate(distance)
     row_f, col_f = coords_to_pixel(pt.x, pt.y, transform)
@@ -210,7 +214,7 @@ def observer_from_distance(dem, transform, crs, nodata, line, distance):
         "row": int(round(row_f)),
         "col": int(round(col_f)),
         "ground_z": ground_z,
-        "observer_z": ground_z + EYE_HEIGHT_M,
+        "observer_z": ground_z + eye_height_m,
         "lon": lons[0],
         "lat": lats[0],
     }
@@ -227,7 +231,8 @@ def estimate_runtime(num_samples, seconds_per=SECONDS_PER_VIEWSHED_ESTIMATE):
 
 def export_route_viewsheds(dem, transform, crs, pixel_size_m, nodata,
                             route_utm_line, route_lonlat, distances,
-                            max_radius_m, target_height_m, out_path):
+                            max_radius_m, target_height_m, out_path,
+                            eye_height_m=EYE_HEIGHT_M):
     """
     Compute a viewshed at every sample distance and write them all into one
     GeoJSON FeatureCollection: one Feature per sample (polygon + distance/
@@ -237,7 +242,7 @@ def export_route_viewsheds(dem, transform, crs, pixel_size_m, nodata,
     features = []
 
     for i, distance in enumerate(distances):
-        obs = observer_from_distance(dem, transform, crs, nodata, route_utm_line, distance)
+        obs = observer_from_distance(dem, transform, crs, nodata, route_utm_line, distance, eye_height_m)
         if obs is None:
             continue
 
@@ -308,6 +313,7 @@ def run_export(args):
         dem, transform, crs, pixel_size_m, nodata,
         line, route_lonlat, distances,
         args.max_radius, TARGET_HEIGHT_M, args.out,
+        eye_height_m=args.eye_height,
     )
 
 
@@ -331,6 +337,9 @@ def main():
     export_parser.add_argument("--out", default=OUTPUT_PATH)
     export_parser.add_argument("--step", type=float, default=STEP_DISTANCE_M)
     export_parser.add_argument("--max-radius", type=float, default=MAX_RADIUS_M)
+    export_parser.add_argument("--eye-height", type=float, default=EYE_HEIGHT_M,
+                                help="observer height above ground, in meters (default: "
+                                     f"{EYE_HEIGHT_M}, roughly eye level for a standing person)")
     export_parser.set_defaults(func=run_export)
 
     args = parser.parse_args()
