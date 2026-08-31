@@ -11,6 +11,8 @@ one can be computed and revisited later from the dashboard at "/".
 
 import os
 import sys
+import threading
+import webbrowser
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -112,4 +114,14 @@ def delete_route(route_id):
 
 
 if __name__ == "__main__":
+    # Flask's debug-mode reloader re-execs this script as a child process
+    # (setting WERKZEUG_RUN_MAIN=true there) every time it restarts a
+    # server after a file change. Only opening the browser when that
+    # variable is *unset* means this fires once, on the very first
+    # `python3 webapp/app.py`, and not again on every reload. The short
+    # delay in a background thread gives the actual server a moment to
+    # start listening before the browser tries to connect.
+    if not os.environ.get("WERKZEUG_RUN_MAIN"):
+        threading.Timer(1.25, lambda: webbrowser.open("http://127.0.0.1:5000/")).start()
+
     app.run(debug=True, port=5000)

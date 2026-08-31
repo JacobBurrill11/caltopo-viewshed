@@ -97,7 +97,7 @@ The basemap imagery in the viewer is fetched live by the browser (Esri World Ima
 
 Elevation always comes from the DEM, never from the GPX file's own elevation tags — GPX elevation is frequently absent, barometric, or noisy, and mixing it in would undermine the curvature-corrected geometry already validated against CalTopo.
 
-## Web app (Step 0)
+## Web app
 
 The CLI workflow above still requires a human to compute a bbox, run a `curl` command, and reproject the result by hand. [`webapp/`](webapp/) is a small Flask app that automates all of it: upload a GPX, and the bbox computation, DEM fetch (via `dem_fetch.py`, the same USGS request the CLI documents but issued directly over HTTP instead of shell `curl`), UTM zone detection (`utm_crs_from_lonlat`, replacing the CLI's `--utm-crs` flag with automatic detection from the route's own coordinates), reprojection, and viewshed export all happen automatically, landing on the same interactive scrubber view.
 
@@ -106,9 +106,9 @@ source .venv/bin/activate
 python3 webapp/app.py
 ```
 
-Then open `http://127.0.0.1:5000`, upload a GPX (eye height defaults to 10m here — deliberately more generous than the CLI's validated 1.7m, to allow room for GPS/coordinate imprecision; step distance defaults to 0.5mi), and wait — computation can take a few minutes depending on route length.
+This opens your browser to `http://127.0.0.1:5000` automatically. The dashboard lists any routes you've already computed; "Upload new route" takes you to the form (eye height defaults to 10m here — deliberately more generous than the CLI's validated 1.7m, to allow room for GPS/coordinate imprecision; step distance defaults to 0.5mi, and you can give the route a label). Computation can take a few minutes depending on route length; each computed route is saved (`route_store.py`) so you can come back and view it again later, or delete it from the dashboard.
 
-This is deliberately a minimal first step: single-slot storage (one route at a time, no accounts, no history), synchronous request/response (no progress bar, just a "please wait" message), and the ~2048×2048px single-DEM-request ceiling still applies (routes larger than that fail fast with a clear error rather than a slow timeout). Route labeling, saving/switching between multiple routes, GIF export, and identifying notable terrain features (named peaks, water bodies) visible from a route are all planned as later, separate steps — not built yet.
+This is still an early step: single-user with no accounts, synchronous request/response (no progress bar, just a "please wait" message), and the ~2048×2048px single-DEM-request ceiling still applies (routes larger than that fail fast with a clear error rather than a slow timeout). GIF export and identifying notable terrain features (named peaks, water bodies) visible from a route are planned as later, separate steps — not built yet.
 
 ## Ideas for extending this
 
