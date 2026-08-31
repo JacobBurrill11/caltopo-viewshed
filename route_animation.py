@@ -58,6 +58,14 @@ MAX_RADIUS_M = 32000.0          # each sample fetches its own DEM tile at a fixe
                                  # so resolution (~31.25m/pixel at this radius) depends only on
                                  # max_radius_m, never on route length -- see dem_fetch.py
 
+PEAK_LIMIT = 10                 # GNIS's Summit feature class includes every named bump, not just
+                                 # notable mountains -- a wide-open viewshed can turn up hundreds.
+                                 # Ranking by real elevation (sampled from the DEM, since GNIS doesn't
+                                 # provide it) and keeping only the tallest N keeps the list useful
+                                 # without a fixed elevation cutoff that wouldn't generalize outside
+                                 # the Sierra. Lakes are left unfiltered -- GNIS/OSM lake counts
+                                 # haven't shown the same problem.
+
 OUTPUT_PATH = "route_viewsheds.geojson"
 
 MILES_PER_METER = 1 / 1609.34
@@ -224,7 +232,8 @@ def export_route_viewsheds(route_utm_line, route_lonlat, distances, utm_crs,
         named_features = fetch_named_features(
             (route_bbox["min_lon"], route_bbox["min_lat"], route_bbox["max_lon"], route_bbox["max_lat"])
         )
-        print(f"Found {len(named_features)} named peaks/lakes along the route.")
+        print(f"Found {len(named_features)} named peaks/lakes nearby "
+              f"(candidates -- most won't actually be visible from any single sample).")
     except RuntimeError as e:
         print(f"  named feature lookup failed, continuing without peaks/lakes ({e})")
         named_features = []
@@ -263,6 +272,21 @@ def export_route_viewsheds(route_utm_line, route_lonlat, distances, utm_crs,
                 f for f in named_features
                 if sample_polygon.contains(Point(f["lon"], f["lat"]))
             ]
+
+            peaks, lakes = [], []
+            for f in visible_features:
+                (peaks if f["type"] == "peak" else lakes).append(f)
+
+            ranked_peaks = []
+            for f in peaks:
+                peak_x, peak_y = warp_transform("EPSG:4326", utm_crs, [f["lon"]], [f["lat"]])
+                peak_row, peak_col = coords_to_pixel(peak_x[0], peak_y[0], transform)
+                peak_elevation = bilinear_interpolate(dem, peak_row, peak_col, nodata)
+                if peak_elevation is not None:
+                    ranked_peaks.append((peak_elevation, f))
+            ranked_peaks.sort(key=lambda pair: pair[0], reverse=True)
+
+            visible_features = [f for _, f in ranked_peaks[:PEAK_LIMIT]] + lakes
 
             features.append({
                 "type": "Feature",
