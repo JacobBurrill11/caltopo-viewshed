@@ -1,9 +1,11 @@
 """
 Minimal Flask front end for the route viewshed pipeline.
 
-Upload a GPX file; everything else (bbox computation, DEM fetch,
-reprojection, viewshed export) happens automatically, replacing the
-manual bbox/curl/reproject steps documented in the CLI README.
+Upload a GPX file; everything else (bbox computation, per-sample DEM
+fetch/reprojection, viewshed export) happens automatically. Each sample
+point along the route fetches its own small DEM tile internally (see
+export_route_viewsheds in route_animation.py) -- this app never handles
+a DEM file directly.
 
 Step 1: routes are labeled and saved (via route_store.py) so more than
 one can be computed and revisited later from the dashboard at "/".
@@ -19,7 +21,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from flask import Flask, redirect, render_template, request, send_from_directory, url_for
 
 import route_store
-from dem_fetch import fetch_and_reproject_dem
 from route_animation import (
     MAX_RADIUS_M,
     TARGET_HEIGHT_M,
@@ -29,7 +30,6 @@ from route_animation import (
     sample_distances,
     utm_crs_from_lonlat,
 )
-from viewshed import load_dem
 
 MILES_TO_METERS = 1609.34
 
@@ -68,17 +68,12 @@ def run_pipeline():
         route_lonlat = load_route_points(gpx_path)
         utm_crs = utm_crs_from_lonlat(*route_lonlat[0])
 
-        dem_path = os.path.join(this_dir, "dem.tif")
-        fetch_and_reproject_dem(route_lonlat, MAX_RADIUS_M, utm_crs, dem_path)
-
-        dem, transform, crs, pixel_size_m, nodata = load_dem(dem_path)
-        line = route_to_utm_linestring(route_lonlat, crs)
+        line = route_to_utm_linestring(route_lonlat, utm_crs)
         distances = sample_distances(line, step_distance_m)
 
         out_path = os.path.join(this_dir, "route_viewsheds.geojson")
         export_route_viewsheds(
-            dem, transform, crs, pixel_size_m, nodata,
-            line, route_lonlat, distances,
+            line, route_lonlat, distances, utm_crs,
             MAX_RADIUS_M, TARGET_HEIGHT_M, out_path,
             eye_height_m=eye_height_m,
         )

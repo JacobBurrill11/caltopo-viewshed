@@ -11,6 +11,11 @@ single-point workflow in viewshed.py.
 Reuses viewshed.py's DEM I/O and algorithm rather than duplicating it;
 viewshed.py itself is not modified.
 
+Each sample point fetches its own small DEM tile (dem_fetch.py), sized to
+just 2 * max_radius_m and discarded after use -- this decouples DEM
+resolution entirely from route length, so a route of any length just
+means more equally well-resolved tiles, never a bigger or coarser one.
+
 Sections:
   1. Constants / parameters
   2. Route loading and sampling (GPX parsing, distance-based sampling)
@@ -20,6 +25,8 @@ Sections:
 
 import argparse
 import json
+import os
+import tempfile
 
 import numpy as np
 from rasterio.warp import transform as warp_transform
@@ -27,6 +34,7 @@ from shapely.geometry import LineString
 
 import gpxpy
 
+from dem_fetch import fetch_and_reproject_dem
 from viewshed import (
     load_dem,
     coords_to_pixel,
@@ -41,24 +49,20 @@ from viewshed import (
 # ---------------------------------------------------------------------------
 
 GPX_PATH = "route.gpx"
-DEM_PATH = "route_dem.tif"      # must cover the route's bbox + MAX_RADIUS_M -- see the `bbox` subcommand
-UTM_CRS = "EPSG:32611"          # must match whatever zone the fetched DEM was reprojected into
 
 STEP_DISTANCE_M = 804.672       # 0.5 miles
 EYE_HEIGHT_M = 1.7
 TARGET_HEIGHT_M = 0.0
-MAX_RADIUS_M = 16000.0          # since the DEM fetch always requests a fixed 2048x2048px image,
-                                 # doubling this only coarsens resolution (~9.9m -> ~19.2m/pixel for
-                                 # a typical short route) rather than meaningfully slowing computation
-                                 # down -- see compute_viewshed's parallelization in viewshed.py
+MAX_RADIUS_M = 32000.0          # each sample fetches its own DEM tile at a fixed 2048x2048px budget,
+                                 # so resolution (~31.25m/pixel at this radius) depends only on
+                                 # max_radius_m, never on route length -- see dem_fetch.py
 
 OUTPUT_PATH = "route_viewsheds.geojson"
 
 MILES_PER_METER = 1 / 1609.34
-SECONDS_PER_VIEWSHED_ESTIMATE = 10.0  # measured at MAX_RADIUS_M=16000 with compute_viewshed's
-                                       # multiprocessing parallelization; largely independent of
-                                       # radius since a bigger radius just coarsens the fetched DEM's
-                                       # resolution rather than adding more work (see MAX_RADIUS_M above)
+SECONDS_PER_DEM_FETCH_ESTIMATE = 4.0         # network-dependent; measured ~12.2s/sample all-in
+SECONDS_PER_VIEWSHED_COMPUTE_ESTIMATE = 8.0  # ~flat across this radius range with parallelization
+SECONDS_PER_VIEWSHED_ESTIMATE = SECONDS_PER_DEM_FETCH_ESTIMATE + SECONDS_PER_VIEWSHED_COMPUTE_ESTIMATE
 
 
 # ---------------------------------------------------------------------------
@@ -111,70 +115,11 @@ def utm_crs_from_lonlat(lon, lat):
     return f"EPSG:{epsg}"
 
 
-def compute_required_bbox(route_lonlat, max_radius_m, utm_crs=UTM_CRS):
-    """
-    Compute the lon/lat bounding box needed to fetch a DEM that covers the
-    full route plus a max_radius_m buffer in every direction, so every
-    sample point's viewshed rays stay within the fetched data.
-
-    Steps:
-      - Reproject route_lonlat into utm_crs (rasterio.warp.transform, same
-        pattern as route_to_utm_linestring below).
-      - Take the min/max x and min/max y of the projected points, then
-        buffer those bounds outward by max_radius_m on every side.
-      - Reproject the 4 buffered corners (not just the center point) back
-        to EPSG:4326 and take the min/max lon/lat of the results -- UTM
-        axes aren't lon/lat-aligned, so buffering in one CRS and taking a
-        naive min/max in the other would clip corners.
-      - Estimate the pixel dimensions needed to cover that bbox at
-        roughly this project's usual resolution (~16.6 m/pixel, matching
-        the existing DEM), and warn if either dimension would exceed
-        ~2048px -- the empirically-found ceiling for a single USGS 3DEP
-        ImageServer exportImage request (no mosaicking is implemented;
-        long routes are a known v1 limitation).
-
-    Returns a dict: {"min_lon", "min_lat", "max_lon", "max_lat",
-    "est_width_px", "est_height_px"}.
-    """
-    lons = [p[0] for p in route_lonlat]
-    lats = [p[1] for p in route_lonlat]
-    xs, ys = warp_transform("EPSG:4326", utm_crs, lons, lats)
-    max_x, min_x = max(xs), min(xs)
-    max_y, min_y = max(ys), min(ys)
-    min_x -= max_radius_m
-    max_x += max_radius_m
-    min_y -= max_radius_m
-    max_y += max_radius_m
-    top_left = warp_transform(utm_crs, "EPSG:4326", [min_x], [max_y])
-    bottom_right = warp_transform(utm_crs, "EPSG:4326", [max_x], [min_y])
-    top_right = warp_transform(utm_crs, "EPSG:4326", [max_x], [max_y])
-    bottom_left = warp_transform(utm_crs, "EPSG:4326", [min_x], [min_y])
-    min_lon = min(top_left[0][0], bottom_right[0][0], top_right[0][0], bottom_left[0][0])
-    max_lon = max(top_left[0][0], bottom_right[0][0], top_right[0][0], bottom_left[0][0])
-    min_lat = min(top_left[1][0], bottom_right[1][0], top_right[1][0], bottom_left[1][0])
-    max_lat = max(top_left[1][0], bottom_right[1][0], top_right[1][0], bottom_left[1][0])
-    est_width_px = (max_x - min_x) / 16.6
-    est_height_px = (max_y - min_y) / 16.6
-    if (est_width_px) > 2048 or (est_height_px) > 2048:
-        print("WARNING: route + buffer exceeds ~2048px in at least one dimension; "
-              "DEM export may fail. Consider a smaller --max-radius or mosaicking "
-              "multiple DEM tiles (not implemented).")
-    return {
-        "min_lon": min_lon,
-        "min_lat": min_lat,
-        "max_lon": max_lon,
-        "max_lat": max_lat,
-        "est_width_px": est_width_px,
-        "est_height_px": est_height_px
-    }
-    
-
-
 def route_to_utm_linestring(route_lonlat, crs):
     """
-    Reproject the route's (lon, lat) points into `crs` (the DEM's CRS) and
-    return them as one shapely LineString, so `.length` and `.interpolate()`
-    give true meters instead of degrees.
+    Reproject the route's (lon, lat) points into `crs` and return them as
+    one shapely LineString, so `.length` and `.interpolate()` give true
+    meters instead of degrees.
     """
     lons = [p[0] for p in route_lonlat]
     lats = [p[1] for p in route_lonlat]
@@ -204,42 +149,41 @@ def sample_distances(line, step_m):
     return distances
 
 
-def observer_from_distance(dem, transform, crs, nodata, line, distance, eye_height_m=EYE_HEIGHT_M):
+def interpolate_route_point(line, distance, utm_crs):
     """
-    Interpolate the point at `distance` along `line`, look up its ground
-    elevation via bilinear interpolation (not a hard cell-snap), and
-    return everything needed to compute + describe a viewshed there.
+    Interpolate `line` (in utm_crs meters) at `distance` and return both
+    the UTM (x, y) and the reprojected EPSG:4326 (lon, lat).
+
+    Pure geometry -- no DEM involved. Runs before that sample's DEM tile
+    even exists, since the tile's own bbox is centered on this point.
+    """
+    pt = line.interpolate(distance)
+    lons, lats = warp_transform(utm_crs, "EPSG:4326", [pt.x], [pt.y])
+    return pt.x, pt.y, lons[0], lats[0]
+
+
+def observer_from_point(dem, transform, nodata, x, y, eye_height_m=EYE_HEIGHT_M):
+    """
+    Bilinear-sample ground elevation at UTM point (x, y) from an
+    already-loaded DEM (that sample's own freshly-fetched tile).
 
     Always uses DEM elevation, never GPX elevation -- GPX elevation tags
     are frequently absent, barometric, or noisy, and mixing them in would
     undermine the curvature-corrected geometry already validated against
     CalTopo's own viewshed tool.
 
-    Returns None (with a printed warning) if the point falls on nodata or
-    outside the DEM's bounds, so the caller can skip that sample.
-
-    `eye_height_m` is added to the ground elevation to get the observer's
-    eye height at each sample point (defaults to EYE_HEIGHT_M, but callers
-    can override it, e.g. from a CLI flag).
+    Returns None (with a printed warning left to the caller) if the point
+    falls on nodata or outside the tile's bounds.
     """
-    pt = line.interpolate(distance)
-    row_f, col_f = coords_to_pixel(pt.x, pt.y, transform)
+    row_f, col_f = coords_to_pixel(x, y, transform)
     ground_z = bilinear_interpolate(dem, row_f, col_f, nodata)
-
     if ground_z is None:
-        print(f"  skipping sample at mile {distance * MILES_PER_METER:.2f}: no elevation data")
         return None
-
-    lons, lats = warp_transform(crs, "EPSG:4326", [pt.x], [pt.y])
-
     return {
-        "distance_m": distance,
         "row": int(round(row_f)),
         "col": int(round(col_f)),
         "ground_z": ground_z,
         "observer_z": ground_z + eye_height_m,
-        "lon": lons[0],
-        "lat": lats[0],
     }
 
 
@@ -249,11 +193,11 @@ def observer_from_distance(dem, transform, crs, nodata, line, distance, eye_heig
 
 def estimate_runtime(num_samples, seconds_per=SECONDS_PER_VIEWSHED_ESTIMATE):
     total_min = num_samples * seconds_per / 60
-    print(f"{num_samples} samples x ~{seconds_per:.0f}s = ~{total_min:.1f} min estimated")
+    print(f"{num_samples} samples x ~{seconds_per:.0f}s (fetch + compute, approximate -- "
+          f"depends on network conditions) = ~{total_min:.1f} min estimated")
 
 
-def export_route_viewsheds(dem, transform, crs, pixel_size_m, nodata,
-                            route_utm_line, route_lonlat, distances,
+def export_route_viewsheds(route_utm_line, route_lonlat, distances, utm_crs,
                             max_radius_m, target_height_m, out_path,
                             eye_height_m=EYE_HEIGHT_M):
     """
@@ -261,34 +205,63 @@ def export_route_viewsheds(dem, transform, crs, pixel_size_m, nodata,
     GeoJSON FeatureCollection: one Feature per sample (polygon + distance/
     elevation/position properties) plus one Feature for the route itself
     (a constant LineString, for the viewer to draw as background).
+
+    Each sample fetches its own small DEM tile (dem_fetch.fetch_and_reproject_dem,
+    sized to 2 * max_radius_m, independent of route length), uses it, and
+    discards it -- scratch tiles live in a temporary directory that's
+    cleaned up automatically, with a per-sample delete as well so they
+    don't pile up mid-run on a long route. A fetch failure or nodata
+    sample is skipped (printed warning), same as today's nodata handling,
+    not treated as fatal for the whole route. If every sample fails,
+    raises RuntimeError rather than silently writing a route-line-only
+    GeoJSON that would look like a success.
     """
     features = []
 
-    for i, distance in enumerate(distances):
-        obs = observer_from_distance(dem, transform, crs, nodata, route_utm_line, distance, eye_height_m)
-        if obs is None:
-            continue
+    with tempfile.TemporaryDirectory(prefix="viewshed_scratch_") as scratch_dir:
+        for i, distance in enumerate(distances):
+            mile = distance * MILES_PER_METER
+            x, y, lon, lat = interpolate_route_point(route_utm_line, distance, utm_crs)
+            tmp_dem_path = os.path.join(scratch_dir, f"sample_{i:04d}.tif")
 
-        print(f"[{i + 1}/{len(distances)}] mile {distance * MILES_PER_METER:.2f}: computing viewshed...")
-        visibility = compute_viewshed(
-            dem, transform, pixel_size_m,
-            obs["row"], obs["col"], obs["observer_z"],
-            max_radius_m, target_height_m, nodata,
-        )
-        geometry = polygonize_visibility(visibility, transform, crs)
+            try:
+                fetch_and_reproject_dem([(lon, lat)], max_radius_m, utm_crs, tmp_dem_path)
+                dem, transform, _crs, pixel_size_m, nodata = load_dem(tmp_dem_path)
 
-        features.append({
-            "type": "Feature",
-            "properties": {
-                "index": i,
-                "distance_m": obs["distance_m"],
-                "distance_mi": obs["distance_m"] * MILES_PER_METER,
-                "elevation_m": float(obs["ground_z"]),
-                "lon": obs["lon"],
-                "lat": obs["lat"],
-            },
-            "geometry": geometry,
-        })
+                obs = observer_from_point(dem, transform, nodata, x, y, eye_height_m)
+                if obs is None:
+                    print(f"  skipping sample at mile {mile:.2f}: no elevation data")
+                    continue
+
+                print(f"[{i + 1}/{len(distances)}] mile {mile:.2f}: computing viewshed...")
+                visibility = compute_viewshed(
+                    dem, transform, pixel_size_m,
+                    obs["row"], obs["col"], obs["observer_z"],
+                    max_radius_m, target_height_m, nodata,
+                )
+                geometry = polygonize_visibility(visibility, transform, utm_crs)
+            except (ValueError, RuntimeError) as e:
+                print(f"  skipping sample at mile {mile:.2f}: DEM fetch failed ({e})")
+                continue
+            finally:
+                if os.path.exists(tmp_dem_path):
+                    os.remove(tmp_dem_path)
+
+            features.append({
+                "type": "Feature",
+                "properties": {
+                    "index": i,
+                    "distance_m": distance,
+                    "distance_mi": mile,
+                    "elevation_m": float(obs["ground_z"]),
+                    "lon": lon,
+                    "lat": lat,
+                },
+                "geometry": geometry,
+            })
+
+    if not features:
+        raise RuntimeError(f"All {len(distances)} samples failed -- no viewshed could be computed")
 
     features.append({
         "type": "Feature",
@@ -310,31 +283,15 @@ def export_route_viewsheds(dem, transform, crs, pixel_size_m, nodata,
 # 4. CLI entry point
 # ---------------------------------------------------------------------------
 
-def run_bbox(args):
-    route_lonlat = load_route_points(args.gpx)
-    bbox = compute_required_bbox(route_lonlat, args.max_radius, args.utm_crs)
-
-    print(f"bbox: {bbox['min_lon']},{bbox['min_lat']},{bbox['max_lon']},{bbox['max_lat']}")
-    print(f"estimated size: {bbox['est_width_px']} x {bbox['est_height_px']} px")
-    if bbox["est_width_px"] > 2048 or bbox["est_height_px"] > 2048:
-        print("WARNING: estimated size exceeds the ~2048x2048px single-request ceiling "
-              "found for the USGS 3DEP ImageServer. This route may need a smaller "
-              "--max-radius, or mosaicking multiple DEM tiles (not implemented).")
-    print()
-    print('--data-urlencode "bbox=' + f"{bbox['min_lon']},{bbox['min_lat']},"
-          f"{bbox['max_lon']},{bbox['max_lat']}\"")
-
-
 def run_export(args):
-    dem, transform, crs, pixel_size_m, nodata = load_dem(args.dem)
     route_lonlat = load_route_points(args.gpx)
-    line = route_to_utm_linestring(route_lonlat, crs)
+    utm_crs = args.utm_crs or utm_crs_from_lonlat(*route_lonlat[0])
+    line = route_to_utm_linestring(route_lonlat, utm_crs)
     distances = sample_distances(line, args.step)
 
     estimate_runtime(len(distances))
     export_route_viewsheds(
-        dem, transform, crs, pixel_size_m, nodata,
-        line, route_lonlat, distances,
+        line, route_lonlat, distances, utm_crs,
         args.max_radius, TARGET_HEIGHT_M, args.out,
         eye_height_m=args.eye_height,
     )
@@ -344,25 +301,18 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    bbox_parser = subparsers.add_parser("bbox", help="print the DEM bbox needed for a route")
-    bbox_parser.add_argument("--gpx", default=GPX_PATH)
-    bbox_parser.add_argument("--max-radius", type=float, default=MAX_RADIUS_M)
-    bbox_parser.add_argument("--utm-crs", default=UTM_CRS,
-                              help="UTM zone EPSG code for the route's location, e.g. EPSG:32610 "
-                                   "for Tahoe vs EPSG:32611 for the Sierra default. Get this wrong "
-                                   "and the bbox will be silently distorted, worse the further the "
-                                   "route is from the zone's central meridian.")
-    bbox_parser.set_defaults(func=run_bbox)
-
     export_parser = subparsers.add_parser("export", help="compute viewsheds along a route")
     export_parser.add_argument("--gpx", default=GPX_PATH)
-    export_parser.add_argument("--dem", default=DEM_PATH)
     export_parser.add_argument("--out", default=OUTPUT_PATH)
     export_parser.add_argument("--step", type=float, default=STEP_DISTANCE_M)
     export_parser.add_argument("--max-radius", type=float, default=MAX_RADIUS_M)
     export_parser.add_argument("--eye-height", type=float, default=EYE_HEIGHT_M,
                                 help="observer height above ground, in meters (default: "
                                      f"{EYE_HEIGHT_M}, roughly eye level for a standing person)")
+    export_parser.add_argument("--utm-crs", default=None,
+                                help="UTM zone EPSG code override, e.g. EPSG:32610. Auto-detected "
+                                     "from the route's first point by default; only needed to force "
+                                     "a zone (e.g. a route straddling two UTM zones).")
     export_parser.set_defaults(func=run_export)
 
     args = parser.parse_args()
