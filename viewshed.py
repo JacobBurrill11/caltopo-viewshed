@@ -16,6 +16,7 @@ Sections below are grouped as:
 
 import json
 import math
+import multiprocessing
 from datetime import date
 
 import numpy as np
@@ -170,8 +171,32 @@ def sweep_ray(dem, transform, observer_row, observer_col, observer_z,
     return visible_positions
 
 
+_worker_args = None  # set once per worker process by _init_worker
+
+
+def _init_worker(dem, transform, observer_row, observer_col, observer_z,
+                  pixel_size_m, max_radius_m, target_height_m, nodata):
+    """
+    Pool initializer: runs once per worker process (not once per ray), so
+    the DEM and other shared arguments are pickled to each worker a single
+    time rather than re-sent for every angle.
+    """
+    global _worker_args
+    _worker_args = (dem, transform, observer_row, observer_col, observer_z,
+                     pixel_size_m, max_radius_m, target_height_m, nodata)
+
+
+def _sweep_ray_worker(theta):
+    """Call sweep_ray, unchanged, inside a worker process for one angle."""
+    dem, transform, observer_row, observer_col, observer_z, \
+        pixel_size_m, max_radius_m, target_height_m, nodata = _worker_args
+    return sweep_ray(dem, transform, observer_row, observer_col, observer_z,
+                      theta, pixel_size_m, max_radius_m, target_height_m, nodata)
+
+
 def compute_viewshed(dem, transform, pixel_size_m, observer_row, observer_col,
-                      observer_z, max_radius_m, target_height_m, nodata):
+                      observer_z, max_radius_m, target_height_m, nodata,
+                      num_workers=None):
     """
     Orchestrate the full sweep: choose an angular step (~pixel_size_m /
     max_radius_m radians, so adjacent rays are about one pixel apart at max
@@ -179,18 +204,30 @@ def compute_viewshed(dem, transform, pixel_size_m, observer_row, observer_col,
     every ray's visible cells into one boolean array the same shape as
     `dem`. The observer's own cell is marked visible directly.
 
+    Rays are independent of each other, so they're dispatched across a
+    multiprocessing.Pool (num_workers defaults to the machine's CPU count)
+    instead of a plain Python loop -- sweep_ray's own logic is untouched,
+    this only parallelizes how many times it gets called at once.
+
     Returns the boolean visibility array.
     """
     angular_step = pixel_size_m / max_radius_m
     num_steps = int(math.ceil(2 * math.pi / angular_step))
+    thetas = [step * angular_step for step in range(num_steps)]
+
     visibility = np.zeros(dem.shape, dtype=bool)
-    for step in range(num_steps):
-        theta = step * angular_step
-        visible_positions = sweep_ray(dem, transform, observer_row, observer_col, observer_z,
-                                      theta, pixel_size_m, max_radius_m, target_height_m, nodata)
-        for row, col in visible_positions:
-            if 0 <= row < dem.shape[0] and 0 <= col < dem.shape[1]:
-                visibility[row, col] = True
+
+    with multiprocessing.Pool(
+        processes=num_workers,
+        initializer=_init_worker,
+        initargs=(dem, transform, observer_row, observer_col, observer_z,
+                  pixel_size_m, max_radius_m, target_height_m, nodata),
+    ) as pool:
+        for visible_positions in pool.imap_unordered(_sweep_ray_worker, thetas, chunksize=32):
+            for row, col in visible_positions:
+                if 0 <= row < dem.shape[0] and 0 <= col < dem.shape[1]:
+                    visibility[row, col] = True
+
     visibility[observer_row, observer_col] = True  # Mark observer's own cell as visible
     return visibility
 

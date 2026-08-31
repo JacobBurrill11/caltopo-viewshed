@@ -47,12 +47,18 @@ UTM_CRS = "EPSG:32611"          # must match whatever zone the fetched DEM was r
 STEP_DISTANCE_M = 804.672       # 0.5 miles
 EYE_HEIGHT_M = 1.7
 TARGET_HEIGHT_M = 0.0
-MAX_RADIUS_M = 8000.0           # smaller than viewshed.py's single-point default -- the runtime lever
+MAX_RADIUS_M = 16000.0          # since the DEM fetch always requests a fixed 2048x2048px image,
+                                 # doubling this only coarsens resolution (~9.9m -> ~19.2m/pixel for
+                                 # a typical short route) rather than meaningfully slowing computation
+                                 # down -- see compute_viewshed's parallelization in viewshed.py
 
 OUTPUT_PATH = "route_viewsheds.geojson"
 
 MILES_PER_METER = 1 / 1609.34
-SECONDS_PER_VIEWSHED_ESTIMATE = 8.0   # measured at MAX_RADIUS_M=8000; scales roughly with radius^2
+SECONDS_PER_VIEWSHED_ESTIMATE = 10.0  # measured at MAX_RADIUS_M=16000 with compute_viewshed's
+                                       # multiprocessing parallelization; largely independent of
+                                       # radius since a bigger radius just coarsens the fetched DEM's
+                                       # resolution rather than adding more work (see MAX_RADIUS_M above)
 
 
 # ---------------------------------------------------------------------------
