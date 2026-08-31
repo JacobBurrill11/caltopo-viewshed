@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Route Viewshed</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 640px; margin: 60px auto; color: #1b1b1b; }
+  h1 { font-size: 20px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+  th, td { text-align: left; padding: 8px 6px; font-size: 14px; border-bottom: 1px solid #eee; }
+  th { color: #777; font-weight: normal; font-size: 12px; text-transform: uppercase; }
+  td.actions { white-space: nowrap; text-align: right; }
+  td.actions a { margin-right: 12px; }
+  button.delete { background: none; border: none; color: #b00020; cursor: pointer; font-size: 13px; padding: 0; }
+  .empty { color: #777; margin-top: 24px; }
+  .upload-link { display: inline-block; margin-top: 20px; padding: 10px 20px; background: #1b1b1b; color: white;
+    text-decoration: none; font-size: 14px; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<h1>Route Viewshed</h1>
+
+{% if routes %}
+<table>
+  <tr>
+    <th>Label</th>
+    <th>Computed</th>
+    <th>Distance</th>
+    <th></th>
+  </tr>
+  {% for r in routes %}
+  <tr>
+    <td>{{ r.label }}</td>
+    <td>{{ r.created_at[:16].replace('T', ' ') }}</td>
+    <td>{{ "%.2f"|format(r.total_distance_mi) }} mi</td>
+    <td class="actions">
+      <a href="{{ url_for('results', route_id=r.route_id) }}">View</a>
+      <form style="display:inline" method="post" action="{{ url_for('delete_route', route_id=r.route_id) }}"
+            onsubmit="return confirm('Delete route ‘' + {{ r.label|tojson }} + '’? This cannot be undone.');">
+        <button type="submit" class="delete">Delete</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="empty">No routes saved yet.</p>
+{% endif %}
+
+<a class="upload-link" href="/upload">Upload new route</a>
+
+</body>
+</html>

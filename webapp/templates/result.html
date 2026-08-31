@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Route Viewshed Viewer</title>
+<title>{{ label }} — Route Viewshed Viewer</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
   html, body { margin: 0; height: 100%; font-family: -apple-system, sans-serif; }
@@ -25,13 +25,14 @@
 
 <div id="map"></div>
 <div id="status">Loading route_viewsheds.geojson...</div>
-<a id="back" href="/">&larr; New route</a>
+<a id="back" href="/">&larr; Saved routes</a>
 <div id="controls">
   <span id="readout">--</span>
   <input type="range" id="slider" min="0" max="0" value="0" step="1" disabled>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>window.ROUTE_ID = {{ route_id|tojson }};</script>
 <script src="{{ url_for('static', filename='viewer.js') }}"></script>
 
 </body>
