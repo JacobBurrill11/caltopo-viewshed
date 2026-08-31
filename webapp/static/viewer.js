@@ -5,8 +5,11 @@ L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/
   maxZoom: 19,
 }).addTo(map);
 
+const FEATURE_COLORS = { peak: '#8b5a2b', lake: '#17a2b8' };
+
 let viewshedLayer = null;
 let marker = null;
+let featureLayer = null;
 let samples = []; // one entry per viewshed sample, sorted by index
 
 function showSample(i) {
@@ -24,6 +27,17 @@ function showSample(i) {
   } else {
     marker = L.circleMarker([lat, lon], { radius: 7, color: '#1e90ff', fillColor: '#1e90ff', fillOpacity: 1 }).addTo(map);
   }
+
+  if (featureLayer) map.removeLayer(featureLayer);
+  const visibleFeatures = sample.properties.visible_features || [];
+  featureLayer = L.layerGroup(
+    visibleFeatures.map(f => L.circleMarker([f.lat, f.lon], {
+      radius: 6,
+      color: FEATURE_COLORS[f.type] || '#666',
+      fillColor: FEATURE_COLORS[f.type] || '#666',
+      fillOpacity: 0.9,
+    }).bindTooltip(f.name))
+  ).addTo(map);
 
   document.getElementById('readout').textContent =
     `Mile ${sample.properties.distance_mi.toFixed(2)} of ${samples[samples.length - 1].properties.distance_mi.toFixed(2)}` +
@@ -44,6 +58,27 @@ fetch(`/results/${window.ROUTE_ID}/route_viewsheds.geojson`)
     } else if (samples.length) {
       map.setView([samples[0].properties.lat, samples[0].properties.lon], 13);
     }
+
+    // Aggregate list: union-by-name of every sample's visible_features,
+    // computed client-side since each sample already carries its own list.
+    const aggregate = new Map(); // name -> {name, type, lon, lat}
+    samples.forEach(s => (s.properties.visible_features || []).forEach(f => {
+      if (!aggregate.has(f.name)) aggregate.set(f.name, f);
+    }));
+    const aggregateList = Array.from(aggregate.values()).sort((a, b) => a.name.localeCompare(b.name));
+
+    const listEl = document.getElementById('feature-list');
+    aggregateList.forEach(f => {
+      const li = document.createElement('li');
+      const dot = document.createElement('span');
+      dot.style.color = FEATURE_COLORS[f.type] || '#666';
+      dot.textContent = '● ';
+      li.appendChild(dot);
+      li.appendChild(document.createTextNode(f.name));
+      listEl.appendChild(li);
+    });
+    document.getElementById('feature-panel-summary').textContent =
+      `Named features along this route (${aggregateList.length})`;
 
     const slider = document.getElementById('slider');
     slider.max = samples.length - 1;

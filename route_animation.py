@@ -30,11 +30,12 @@ import tempfile
 
 import numpy as np
 from rasterio.warp import transform as warp_transform
-from shapely.geometry import LineString
+from shapely.geometry import LineString, Point, shape
 
 import gpxpy
 
-from dem_fetch import fetch_and_reproject_dem
+from dem_fetch import compute_required_bbox, fetch_and_reproject_dem
+from terrain_features import fetch_named_features
 from viewshed import (
     load_dem,
     coords_to_pixel,
@@ -218,6 +219,16 @@ def export_route_viewsheds(route_utm_line, route_lonlat, distances, utm_crs,
     """
     features = []
 
+    route_bbox = compute_required_bbox(route_lonlat, max_radius_m, utm_crs)
+    try:
+        named_features = fetch_named_features(
+            (route_bbox["min_lon"], route_bbox["min_lat"], route_bbox["max_lon"], route_bbox["max_lat"])
+        )
+        print(f"Found {len(named_features)} named peaks/lakes along the route.")
+    except RuntimeError as e:
+        print(f"  named feature lookup failed, continuing without peaks/lakes ({e})")
+        named_features = []
+
     with tempfile.TemporaryDirectory(prefix="viewshed_scratch_") as scratch_dir:
         for i, distance in enumerate(distances):
             mile = distance * MILES_PER_METER
@@ -247,6 +258,12 @@ def export_route_viewsheds(route_utm_line, route_lonlat, distances, utm_crs,
                 if os.path.exists(tmp_dem_path):
                     os.remove(tmp_dem_path)
 
+            sample_polygon = shape(geometry)
+            visible_features = [
+                f for f in named_features
+                if sample_polygon.contains(Point(f["lon"], f["lat"]))
+            ]
+
             features.append({
                 "type": "Feature",
                 "properties": {
@@ -256,6 +273,7 @@ def export_route_viewsheds(route_utm_line, route_lonlat, distances, utm_crs,
                     "elevation_m": float(obs["ground_z"]),
                     "lon": lon,
                     "lat": lat,
+                    "visible_features": visible_features,
                 },
                 "geometry": geometry,
             })

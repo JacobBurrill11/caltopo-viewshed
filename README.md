@@ -106,7 +106,15 @@ python3 webapp/app.py
 
 This opens your browser to `http://127.0.0.1:5000` automatically. The dashboard lists any routes you've already computed; "Upload new route" takes you to the form (eye height defaults to 10m here — deliberately more generous than the CLI's validated 1.7m, to allow room for GPS/coordinate imprecision; step distance defaults to 0.5mi, and you can give the route a label). Computation can take a while depending on route length (roughly 10-15s per sample point, fetch + compute) — no route length triggers a failure, just more sample points to work through. Each computed route is saved (`route_store.py`) so you can come back and view it again later, or delete it from the dashboard.
 
-This is still an early step: single-user with no accounts, synchronous request/response (no progress bar, just a "please wait" message). GIF export and identifying notable terrain features (named peaks, water bodies) visible from a route are planned as later, separate steps — not built yet.
+This is still an early step: single-user with no accounts, synchronous request/response (no progress bar, just a "please wait" message). GIF export is planned as a later step — not built yet.
+
+## Named peaks and lakes
+
+Every sample point's viewshed also gets checked against nearby named terrain features: **peaks** from [USGS GNIS](https://www.usgs.gov/us-board-on-geographic-names) and **lakes** from OpenStreetMap ([`terrain_features.py`](terrain_features.py)). One query covers the whole route (not one per sample), then each sample's already-computed polygon gets a fast local point-in-polygon check against the shared candidate list.
+
+The two-source split exists for a real, tested reason: GNIS's own point-feature layer for lakes is missing major named lakes entirely — Lake Tahoe doesn't appear in it at all for a bbox that clearly contains it, despite being an official, authoritative name. GNIS's peak data is solid (verified against real named summits), so peaks stay on GNIS; lakes come from OpenStreetMap instead, which does have Lake Tahoe correctly. A lookup failure on either source degrades gracefully — the viewshed computation itself always completes, just with fewer (or zero) labeled features for that run.
+
+In the viewer, labeled markers on the map update as you drag the scrubber (only what's visible from that exact point); a separate collapsible panel lists every named feature visible from anywhere along the whole route.
 
 ## Ideas for extending this
 
