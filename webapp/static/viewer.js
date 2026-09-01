@@ -5,7 +5,7 @@ L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/
   maxZoom: 19,
 }).addTo(map);
 
-const FEATURE_COLORS = { peak: '#8b5a2b', lake: '#17a2b8' };
+const FEATURE_COLORS = { peak: '#f5f11c', lake: '#1752b8' };
 
 let viewshedLayer = null;
 let marker = null;
@@ -18,14 +18,14 @@ function showSample(i) {
 
   if (viewshedLayer) map.removeLayer(viewshedLayer);
   viewshedLayer = L.geoJSON(sample, {
-    style: { color: '#ff3b3b', weight: 2, fillColor: '#ff3b3b', fillOpacity: 0.35 },
+    style: { color: '#3bffde', weight: 2, fillColor: '#3bffde', fillOpacity: 0.35 },
   }).addTo(map);
 
   const [lon, lat] = [sample.properties.lon, sample.properties.lat];
   if (marker) {
     marker.setLatLng([lat, lon]);
   } else {
-    marker = L.circleMarker([lat, lon], { radius: 7, color: '#1e90ff', fillColor: '#1e90ff', fillOpacity: 1 }).addTo(map);
+    marker = L.circleMarker([lat, lon], { radius: 7, color: '#ff1ee5', fillColor: '#ff1ee5', fillOpacity: 1 }).addTo(map);
   }
 
   if (featureLayer) map.removeLayer(featureLayer);
@@ -53,7 +53,7 @@ fetch(`/results/${window.ROUTE_ID}/route_viewsheds.geojson`)
       .sort((a, b) => a.properties.index - b.properties.index);
 
     if (routeFeature) {
-      const routeLine = L.geoJSON(routeFeature, { style: { color: '#00e5ff', weight: 3 } }).addTo(map);
+      const routeLine = L.geoJSON(routeFeature, { style: { color: '#ff1ee5', weight: 3 } }).addTo(map);
       map.fitBounds(routeLine.getBounds(), { padding: [30, 30] });
     } else if (samples.length) {
       map.setView([samples[0].properties.lat, samples[0].properties.lon], 13);
