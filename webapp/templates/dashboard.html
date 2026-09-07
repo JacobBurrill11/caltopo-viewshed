@@ -13,6 +13,11 @@
   .route-grid, .route-card, .route-card__label, .route-card__meta,
   .route-card__actions, .delete-btn, .empty-state, .upload-link.
 -->
+<div class="nav-corner">
+  <a class="nav-corner__link" href="{{ url_for('title') }}">Home</a>
+  <a class="nav-corner__link" href="{{ url_for('about') }}">About</a>
+</div>
+
 <h1>Saved Routes</h1>
 
 {% if routes %}
@@ -21,7 +26,7 @@
   <div class="route-card">
     <div class="route-card__label">{{ r.label }}</div>
     <div class="route-card__meta">
-      <span>{{ r.created_at[:16].replace('T', ' ') }}</span>
+      <span>{{ r.created_at[5:7] }}/{{ r.created_at[8:10] }}/{{ r.created_at[0:4] }}</span>
       <span>{{ "%.2f"|format(r.total_distance_mi) }} mi</span>
       <span>Eye height: {{ "%.1f"|format(r.eye_height_m) }} m</span>
       <span>Step: {{ "%.2f"|format(r.step_distance_mi) }} mi</span>

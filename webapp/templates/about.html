@@ -6,20 +6,16 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 <style>
   /*
-   * Deliberately plain -- no special cosmetic treatment was requested for
-   * this page, just the shared tokens from style.css (font, base colors).
-   * This inline block only handles this page's own layout (a simple
-   * centered column, an image cap width), not anything decorative.
+   * This page's own layout (a simple centered reading column) -- the
+   * background/theme comes from the shared .about-page rule in style.css.
    */
   body { max-width: 640px; margin: 60px auto; padding: 0 16px; }
   h1 { font-size: 22px; }
   p { line-height: 1.5; }
-  img { max-width: 100%; border-radius: 4px; margin: 16px 0; }
-  .caption { font-size: 13px; color: #777; margin-top: -8px; }
   .back-link { display: inline-block; margin-top: 24px; }
 </style>
 </head>
-<body>
+<body class="about-page">
 
 <h1>CalTopo Viewshed</h1>
 
@@ -42,17 +38,13 @@
   the same point.
 </p>
 
-<img src="{{ url_for('static', filename='images/caltopo_validation.jpg') }}"
-     alt="CalTopo's built-in viewshed (blue) overlaid with this project's independently-computed output (red outline), showing near-exact agreement">
-<p class="caption">CalTopo's built-in viewshed (blue) vs. this project's own output (red outline) for the same observer point.</p>
-
 <p>
   This is a portfolio project built while looking for data analyst / data scientist roles &mdash;
   full write-up, algorithm details, and source on
   <a href="https://github.com/JacobBurrill11/caltopo-viewshed">GitHub</a>.
 </p>
 
-<a class="back-link" href="{{ url_for('title') }}">&larr; Back to start</a>
+<a class="back-link" href="{{ url_for('title') }}">&larr; Home</a>
 
 </body>
 </html>

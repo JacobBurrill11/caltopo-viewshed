@@ -60,3 +60,203 @@
  *    routes saved yet." message), .upload-link (a real button, similar
  *    treatment to .title-button).
  */
+:root {
+  --charcoal:    #1b1b1b;
+  --teal-accent: #3bffde;
+  --pink-accent: #ff1ee5;
+  --peak-color:  #f5f11c;
+  --lake-color:  #1752b8;
+}
+body {
+    margin: 0;
+    font-family: -apple-system, sans-serif;
+}
+.title-page {
+  background-color: var(--charcoal);
+  /* Two overlapping ring systems, off-center and at different spacing/
+     opacity, so it reads as two nearby peaks' contour lines rather than
+     one perfectly concentric bullseye. See the comment below the .routes-
+     page rule for how repeating-radial-gradient's syntax works. */
+  background-image:
+    repeating-radial-gradient(circle at 15% 20%,
+      rgba(255, 255, 255, 0.07) 0px, rgba(255, 255, 255, 0.07) 1px,
+      transparent 1px, transparent 40px),
+    repeating-radial-gradient(circle at 85% 75%,
+      rgba(255, 255, 255, 0.05) 0px, rgba(255, 255, 255, 0.05) 1px,
+      transparent 1px, transparent 55px);
+  color: white;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.title-hero {
+  text-align: center;
+}
+.title-buttons {
+  /* .title-hero's own width is set by its widest child (likely the h1),
+     so .title-buttons -- a plain block-level box despite being a flex
+     container -- stretches to that same width rather than shrinking to
+     fit just its two buttons. Without justify-content: center, the
+     default (flex-start) then leaves both buttons hugging the left edge
+     of that wider box instead of sitting centered under the heading. */
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.title-tagline {
+  font-size: 1.25rem;
+  margin-top: 0.5rem;
+}
+.title-button, .upload-link {
+  background-color: var(--teal-accent);
+  color: var(--charcoal);
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+.upload-link {
+  /* .upload-link is an inline <a>, sitting directly after .route-grid in
+     dashboard.html with no gap of its own -- display: inline-block lets
+     margin-top actually push it down (a plain inline element ignores
+     vertical margin), and the fixed distance clears the last row of
+     cards (plus their box-shadow) instead of touching it. */
+  display: inline-block;
+  margin-top: 2rem;
+}
+.title-button:hover {
+  background-color: #2acfcf; /* Slightly darker teal for hover */
+}
+.routes-page, .about-page {
+  /* Shared with .about-page so it visually matches the routes page (and,
+     via the same technique, the title page) instead of staying the one
+     plain, undecorated page in the app. Only the background lives here --
+     .about-page's own padding/max-width/margin stay in its inline <style>
+     block in about.html, since a class selector here would otherwise beat
+     that page's plain `body { ... }` selector on specificity and override
+     its narrower reading-column layout. */
+  background-color: rgba(209, 209, 209, 0.9);
+  /*
+   * repeating-radial-gradient(circle at X% Y%, stop1, stop2, stop3, stop4)
+   * draws one ring pattern radiating from point (X%, Y%) of the element's
+   * box, then repeats that same band structure outward forever -- that's
+   * what "repeating-" means here, distinct from background-repeat (which
+   * tiles a finite image; this generates an infinite one directly, so no
+   * background-size/background-repeat is needed at all).
+   *
+   * The four comma-separated stops define one repeating unit, walked
+   * outward from the center:
+   *   rgba(27,27,27,0.04) 0px   -- ring color starts fully opaque-ish
+   *   rgba(27,27,27,0.04) 1px   -- ...and stays that color out to 1px
+   *                                 (this pair is what makes a *thin line*
+   *                                 instead of a soft blur -- a gradient
+   *                                 needs two stops of the same color to
+   *                                 get a hard edge instead of a fade)
+   *   transparent 1px           -- immediately transparent past 1px
+   *   transparent 60px          -- ...and stays transparent out to 60px
+   * Then the whole thing repeats: another 1px ring at 60px, transparent
+   * again until 120px, and so on -- concentric rings 60px apart, each 1px
+   * thick. Same idea as .title-page above, just far more transparent
+   * (0.03-0.04 alpha vs. 0.05-0.07) since this needs to sit *behind*
+   * readable route cards, not be a dominant visual on its own.
+   */
+  background-image:
+    repeating-radial-gradient(circle at 10% 10%,
+      rgba(27, 27, 27, 0.04) 0px, rgba(27, 27, 27, 0.04) 1px,
+      transparent 1px, transparent 40px),
+    repeating-radial-gradient(circle at 90% 80%,
+      rgba(27, 27, 27, 0.03) 0px, rgba(27, 27, 27, 0.03) 1px,
+      transparent 1px, transparent 60px);
+  min-height: 100vh;
+}
+.back-link {
+  background-color: var(--charcoal);
+  color: var(--teal-accent);
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.25rem;
+  font-size: 0.8rem;
+  text-decoration: none;
+  transition: background-color 0.3s;
+}
+.routes-page {
+  padding: 2rem;
+}
+.nav-corner {
+  /* position: fixed (viewport-relative, not document-relative) so this
+     stays pinned to the corner even after scrolling past a long list of
+     cards -- unlike position: absolute, which would anchor to wherever
+     it sits in the normal document flow instead. */
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+}
+.nav-corner__link {
+  background-color: var(--charcoal);
+  color: white;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.25rem;
+  font-size: 0.8rem;
+  text-decoration: none;
+  transition: background-color 0.3s;
+}
+.nav-corner__link:hover {
+  background-color: #333;
+}
+.route-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+}
+.route-card {
+  background-color: white;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+.route-card__label {
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+}
+.route-card__meta {
+  /* The four <span> data points (date/distance/eye height/step) are
+     inline by default, so without this they just run together on one
+     line separated by whitespace. display: flex + flex-direction: column
+     stacks them (flex children are blockified automatically, unlike
+     plain inline spans), one per line. */
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  color: #666;
+  margin-bottom: 0.5rem;
+}
+.route-card__actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.delete-btn {   
+  background: none;
+  border: none;
+  color: #b00020;
+  cursor: pointer;
+}
+.empty-state {
+  text-align: center;
+  font-size: 1.25rem;
+  color: #666;
+  margin-top: 2rem;
+}
+
+.upload-link:hover {
+  background-color: #2acfcf; /* Slightly darker teal for hover */
+}
+  
+  
