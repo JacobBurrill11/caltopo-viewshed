@@ -6,11 +6,39 @@ L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/
 }).addTo(map);
 
 const FEATURE_COLORS = { peak: '#f5f11c', lake: '#1752b8' };
+const PLAY_INTERVAL_MS = 700;
 
 let viewshedLayer = null;
 let marker = null;
 let featureLayer = null;
 let samples = []; // one entry per viewshed sample, sorted by index
+let playTimer = null;
+
+function stopPlaying() {
+  if (!playTimer) return;
+  clearInterval(playTimer);
+  playTimer = null;
+  document.getElementById('play-btn').innerHTML = '&#9654; Play';
+}
+
+function startPlaying() {
+  const slider = document.getElementById('slider');
+  playTimer = setInterval(() => {
+    const current = parseInt(slider.value, 10);
+    if (current >= samples.length - 1) {
+      // Reached the end: show the final frame, then reset to the start and
+      // pause, rather than looping continuously.
+      slider.value = 0;
+      showSample(0);
+      stopPlaying();
+      return;
+    }
+    const next = current + 1;
+    slider.value = next;
+    showSample(next);
+  }, PLAY_INTERVAL_MS);
+  document.getElementById('play-btn').innerHTML = '&#10074;&#10074; Pause';
+}
 
 function showSample(i) {
   const sample = samples[i];
@@ -83,7 +111,14 @@ fetch(`/results/${window.ROUTE_ID}/route_viewsheds.geojson`)
     const slider = document.getElementById('slider');
     slider.max = samples.length - 1;
     slider.disabled = false;
-    slider.addEventListener('input', () => showSample(parseInt(slider.value, 10)));
+    slider.addEventListener('input', () => {
+      stopPlaying(); // manual scrubbing shouldn't fight with an active playback timer
+      showSample(parseInt(slider.value, 10));
+    });
+
+    const playBtn = document.getElementById('play-btn');
+    playBtn.disabled = false;
+    playBtn.addEventListener('click', () => (playTimer ? stopPlaying() : startPlaying()));
 
     document.getElementById('status').style.display = 'none';
     if (samples.length) showSample(0);
