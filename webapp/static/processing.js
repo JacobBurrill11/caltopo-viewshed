@@ -10,35 +10,55 @@
  * are terminal.
  *
  * window.ROUTE_ID (set by processing.html) is the route_id to poll.
- *
- * What to implement, in pollStatus() below:
- *   1. fetch(`/routes/${window.ROUTE_ID}/status`) and parse the JSON body.
- *   2. On "running": update #bar-fill's width to the completed/total
- *      percentage, and #readout's text to something like
- *      "Sample 4 of 12". A nice (optional) touch: track how long the
- *      poll loop has been running and the completed count over time to
- *      estimate a "~2 min remaining" from the actual observed pace,
- *      rather than a hardcoded per-sample constant -- more accurate,
- *      since real DEM fetch time varies with network conditions.
- *   3. On "done": redirect the whole page with
- *      `window.location.href = `/results/${window.ROUTE_ID}``.
- *   4. On "error": hide the progress bar, show #error, and set
- *      #error-message's text to the status response's "message" field.
- *   5. On a fetch/network failure itself (not a JSON "error" status --
- *      an actual failed request), decide how to handle it: a transient
- *      blip probably shouldn't give up on the first miss, but polling
- *      forever into a dead server isn't great either.
- *   6. Schedule the next poll (setTimeout or setInterval) at some
- *      reasonable interval -- polling once a second is a reasonable
- *      starting point, fast enough to feel responsive without hammering
- *      the server.
- *
- * Kick it off once at the bottom of this file (e.g. `pollStatus()`), the
- * same way viewer.js's own fetch() runs immediately on page load.
  */
 
-function pollStatus() {
-  throw new Error("processing.js: pollStatus() is not implemented yet");
+function showError(message) {
+  // Used for both a real "error" status from the server AND a poll that
+  // never got a usable status at all -- both leave the user stuck looking
+  // at a progress bar that will never move again, so both need the same
+  // "stop, explain, offer a way out" treatment. Hides the whole track (not
+  // just the fill) and the now-stale readout, so nothing half-finished is
+  // left on screen next to the error box.
+  document.getElementById('bar-track').style.display = 'none';
+  document.getElementById('readout').style.display = 'none';
+  document.getElementById('error').style.display = 'block';
+  document.getElementById('error-message').textContent = message;
+}
+
+async function pollStatus() {
+  let status;
+  try {
+    const response = await fetch(`/routes/${window.ROUTE_ID}/status`);
+    status = await response.json();
+  } catch (err) {
+    // A genuine network-level failure (fetch itself throws only for this --
+    // an HTTP error status like 404 still resolves normally and is handled
+    // in the "unknown" branch below). Nothing useful to retry into here, so
+    // surface it instead of letting the polling loop die silently.
+    showError(`Lost connection while checking progress: ${err}`);
+    return;
+  }
+
+  const barFill = document.getElementById('bar-fill');
+  const readout = document.getElementById('readout');
+
+  if (status.status === 'running') {
+    const percentage = Math.round((status.completed / status.total) * 100);
+    barFill.style.width = `${percentage}%`;
+    readout.textContent = `Sample ${status.completed} of ${status.total}`;
+    setTimeout(pollStatus, 1000); // Poll again after 1 second
+  } else if (status.status === 'done') {
+    window.location.href = `/results/${window.ROUTE_ID}`;
+  } else if (status.status === 'error') {
+    showError(status.message || 'An unknown error occurred.');
+  } else {
+    // "unknown" (returned with a 404 when the server has no record of this
+    // route_id) or any other unrecognized status. Most likely cause in this
+    // app: the debug reloader restarted the server mid-run, wiping the
+    // in-memory progress store -- a known limitation, not a bug to chase.
+    showError("Lost track of this route's progress (the server may have restarted). " +
+               'Check the dashboard to see if it finished, or try uploading again.');
+  }
 }
 
 pollStatus();
