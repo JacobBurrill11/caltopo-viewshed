@@ -28,13 +28,13 @@ source .venv/bin/activate
 python3 webapp/app.py
 ```
 
-This opens `http://127.0.0.1:5000` automatically. The dashboard lists routes you've already computed; "Upload new route" takes you to the form (eye height defaults to a generous 10m to allow for GPS/coordinate imprecision, step distance defaults to 0.5mi, and you can label the route). Computation takes roughly 10-15s per sample point (fetch + compute) — each finished route is saved so you can revisit or delete it later.
+This opens `http://127.0.0.1:5000` automatically. The dashboard lists routes you've already computed; "Upload new route" takes you to the form (eye height defaults to a generous 10m to allow for GPS/coordinate imprecision, step distance defaults to 0.5mi, and you can label the route). Computation takes roughly 10-15s per sample point (fetch + compute), runs in the background, and shows a live progress bar with an ETA rather than a blank "please wait" — each finished route is saved so you can revisit or delete it later.
 
 **[Try a live example](https://jacobburrill11.github.io/caltopo-viewshed/route_viewshed_viewer.html)** — a real ~1.5 mile trail near Lake Tahoe ([`examples/cinder_cone_trail.gpx`](examples/cinder_cone_trail.gpx)). Drag the slider and watch the visible area change as the position moves along the route, similar to CalTopo's own elevation-profile scrubber.
 
 **Named peaks and lakes**: every sample's viewshed also gets checked against nearby named terrain — peaks from [USGS GNIS](https://www.usgs.gov/us-board-on-geographic-names), lakes from OpenStreetMap (GNIS's own lake data turned out to be missing major lakes entirely, e.g. Lake Tahoe — verified during testing, not assumed). Labeled markers on the map update as you drag the scrubber; a collapsible panel lists every named feature visible from anywhere along the whole route, capped to the tallest peaks so a wide-open view doesn't turn into a list of hundreds.
 
-This is still an early-stage app: single-user, no accounts, synchronous request/response (a "please wait" message, no progress bar). GIF export is the next planned addition.
+This is still an early-stage app: single-user, no accounts, no persistent database (routes are saved as plain files on disk). GIF export and mobile-friendly layout are the next planned additions.
 
 ## Using the CLI directly
 
@@ -79,10 +79,12 @@ Summits get the expansive views; points partway down a slope often don't, even a
 - Wrapped in a Flask web app so the whole pipeline — DEM fetch, reprojection, computation — runs automatically instead of requiring manual `curl` commands.
 - Added persistent storage (label and revisit routes from a dashboard) and named peak/lake identification on top of that.
 - Along the way: parallelized the core algorithm, switched from one DEM per route to one small DEM per sample point (so route length stops being a limiting factor), and fixed a couple of real bugs found by testing against actual hikes rather than assuming the design was right.
+- Polished the scrubber UI: a Play button that steps through samples automatically, and a background compute + live progress bar so `/run` no longer blocks the browser for the full multi-minute computation.
 
 ## Ideas for extending this
 
 - **GIF export** of a route's animated viewshed, for sharing outside the interactive viewer.
+- **Mobile-friendly layout** — the app works today but isn't yet tuned for a phone screen.
 - **A "view quality" score** — beyond just visible/not-visible, rank viewpoints by number of named peaks visible, number of visible bodies of water, or the ruggedness/steepness of the visible terrain.
 
 ## Why

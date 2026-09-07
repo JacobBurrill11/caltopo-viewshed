@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Computing&hellip; &mdash; Route Viewshed</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 480px; margin: 80px auto; color: #1b1b1b; }
+  h1 { font-size: 20px; }
+  #bar-track { background: #eee; border-radius: 6px; height: 20px; overflow: hidden; margin-top: 24px; }
+  #bar-fill { background: #1b1b1b; height: 100%; width: 0%; transition: width 0.3s ease; }
+  #readout { margin-top: 12px; font-size: 14px; color: #555; }
+  #error { display: none; margin-top: 20px; padding: 12px; background: #fdecea; color: #b00020;
+    border-radius: 4px; font-size: 14px; }
+  #error a { color: #b00020; }
+</style>
+</head>
+<body>
+
+<h1>Computing viewshed&hellip;</h1>
+<p>Please don't close this tab &mdash; this can take several minutes depending on route length.</p>
+
+<div id="bar-track"><div id="bar-fill"></div></div>
+<div id="readout">Starting&hellip;</div>
+
+<div id="error">
+  <strong>Something went wrong.</strong>
+  <p id="error-message"></p>
+  <p><a href="/upload">&larr; Back to upload</a></p>
+</div>
+
+<script>window.ROUTE_ID = {{ route_id|tojson }};</script>
+<script src="{{ url_for('static', filename='processing.js') }}"></script>
+
+</body>
+</html>

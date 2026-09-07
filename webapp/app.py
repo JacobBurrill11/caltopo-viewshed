@@ -18,8 +18,9 @@ import webbrowser
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from flask import Flask, redirect, render_template, request, send_from_directory, url_for
+from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, url_for
 
+import progress_store
 import route_store
 from route_animation import (
     MAX_RADIUS_M,
@@ -64,29 +65,71 @@ def run_pipeline():
     gpx_path = os.path.join(this_dir, "route.gpx")
     upload.save(gpx_path)
 
+    # Everything up through sampling is fast and purely local (GPX parsing,
+    # UTM zone detection, distance math) -- no reason to background it. Only
+    # the actual per-sample DEM fetch + viewshed compute (export_route_viewsheds,
+    # the slow part) runs in a thread, so /run can redirect immediately to a
+    # page that polls progress instead of blocking for minutes.
     try:
         route_lonlat = load_route_points(gpx_path)
         utm_crs = utm_crs_from_lonlat(*route_lonlat[0])
-
         line = route_to_utm_linestring(route_lonlat, utm_crs)
         distances = sample_distances(line, step_distance_m)
+    except Exception as e:
+        # Broad on purpose, unlike the narrower (ValueError, RuntimeError)
+        # this project uses elsewhere for its own internal failure modes:
+        # this step's input is an arbitrary user-uploaded file, and a
+        # malformed one can raise a third-party parser's own exception type
+        # (e.g. gpxpy.gpx.GPXXMLSyntaxException on bad XML) that isn't
+        # either of those -- caught here so a bad upload always gets a
+        # clean error page instead of a raw 500, with no orphaned route
+        # directory left behind either way.
+        route_store.delete_route(route_id)
+        return render_template("error.html", message=f"Couldn't process that GPX file: {e}"), 400
 
+    progress_store.start(route_id, len(distances))
+
+    def run_in_background():
         out_path = os.path.join(this_dir, "route_viewsheds.geojson")
-        export_route_viewsheds(
-            line, route_lonlat, distances, utm_crs,
-            MAX_RADIUS_M, TARGET_HEIGHT_M, out_path,
-            eye_height_m=eye_height_m,
+        try:
+            export_route_viewsheds(
+                line, route_lonlat, distances, utm_crs,
+                MAX_RADIUS_M, TARGET_HEIGHT_M, out_path,
+                eye_height_m=eye_height_m,
+                on_progress=lambda completed, total: progress_store.update(route_id, completed, total),
+            )
+        except (ValueError, RuntimeError) as e:
+            progress_store.fail(route_id, str(e))
+            route_store.delete_route(route_id)
+            return
+
+        route_store.save_route_metadata(
+            route_id, label, upload.filename, eye_height_m, step_distance_mi,
+            total_distance_mi=distances[-1] / MILES_TO_METERS,
+            sample_count=len(distances),
         )
-    except (ValueError, RuntimeError) as e:
-        return render_template("error.html", message=str(e)), 400
+        progress_store.finish(route_id)
 
-    route_store.save_route_metadata(
-        route_id, label, upload.filename, eye_height_m, step_distance_mi,
-        total_distance_mi=distances[-1] / MILES_TO_METERS,
-        sample_count=len(distances),
-    )
+    threading.Thread(target=run_in_background, daemon=True).start()
 
-    return redirect(url_for("results", route_id=route_id))
+    return redirect(url_for("processing", route_id=route_id))
+
+
+@app.route("/processing/<route_id>")
+def processing(route_id):
+    progress = progress_store.get(route_id)
+    if progress is None:
+        return render_template("error.html", message="That route isn't computing (or the server "
+                                                       "restarted since it started)."), 404
+    return render_template("processing.html", route_id=route_id)
+
+
+@app.route("/routes/<route_id>/status")
+def route_status(route_id):
+    progress = progress_store.get(route_id)
+    if progress is None:
+        return jsonify({"status": "unknown"}), 404
+    return jsonify(progress)
 
 
 @app.route("/results/<route_id>")
@@ -119,4 +162,7 @@ if __name__ == "__main__":
     if not os.environ.get("WERKZEUG_RUN_MAIN"):
         threading.Timer(1.25, lambda: webbrowser.open("http://127.0.0.1:5000/")).start()
 
-    app.run(debug=True, port=5000)
+    # threaded=True: the background compute thread spawned per /run request
+    # (see run_in_background above) needs the dev server able to keep
+    # answering /routes/<id>/status polls concurrently, not queued behind it.
+    app.run(debug=True, port=5000, threaded=True)
