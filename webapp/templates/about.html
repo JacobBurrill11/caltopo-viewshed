@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>About &mdash; CalTopo Viewshed</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+  /*
+   * Deliberately plain -- no special cosmetic treatment was requested for
+   * this page, just the shared tokens from style.css (font, base colors).
+   * This inline block only handles this page's own layout (a simple
+   * centered column, an image cap width), not anything decorative.
+   */
+  body { max-width: 640px; margin: 60px auto; padding: 0 16px; }
+  h1 { font-size: 22px; }
+  p { line-height: 1.5; }
+  img { max-width: 100%; border-radius: 4px; margin: 16px 0; }
+  .caption { font-size: 13px; color: #777; margin-top: -8px; }
+  .back-link { display: inline-block; margin-top: 24px; }
+</style>
+</head>
+<body>
+
+<h1>CalTopo Viewshed</h1>
+
+<p>
+  <a href="https://caltopo.com">CalTopo</a> already has a built-in viewshed layer &mdash;
+  this project isn't trying to replace it. I wanted to understand how one actually works, so
+  I rebuilt it myself, starting from a from-scratch visibility algorithm validated against
+  CalTopo's own tool. It's grown since then into this small web app: upload a hiking route,
+  and it shows you exactly what terrain &mdash; and which named peaks and lakes &mdash; you
+  can see from every point along it.
+</p>
+
+<p>
+  A <strong>viewshed</strong> is the set of terrain visible from a given point, accounting for
+  the ground blocking your view of anything behind it. The core of this project is a
+  <strong>rotational horizon sweep</strong>: rays cast outward from the observer in every
+  direction, tracking the steepest angle seen so far along each ray so a point is only
+  visible if nothing closer in already blocks it &mdash; corrected for Earth curvature and
+  atmospheric refraction, and validated directly against CalTopo's own built-in viewshed for
+  the same point.
+</p>
+
+<img src="{{ url_for('static', filename='images/caltopo_validation.jpg') }}"
+     alt="CalTopo's built-in viewshed (blue) overlaid with this project's independently-computed output (red outline), showing near-exact agreement">
+<p class="caption">CalTopo's built-in viewshed (blue) vs. this project's own output (red outline) for the same observer point.</p>
+
+<p>
+  This is a portfolio project built while looking for data analyst / data scientist roles &mdash;
+  full write-up, algorithm details, and source on
+  <a href="https://github.com/JacobBurrill11/caltopo-viewshed">GitHub</a>.
+</p>
+
+<a class="back-link" href="{{ url_for('title') }}">&larr; Back to start</a>
+
+</body>
+</html>

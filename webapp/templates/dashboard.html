@@ -2,53 +2,45 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Route Viewshed</title>
-<style>
-  body { font-family: -apple-system, sans-serif; max-width: 640px; margin: 60px auto; color: #1b1b1b; }
-  h1 { font-size: 20px; }
-  table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-  th, td { text-align: left; padding: 8px 6px; font-size: 14px; border-bottom: 1px solid #eee; }
-  th { color: #777; font-weight: normal; font-size: 12px; text-transform: uppercase; }
-  td.actions { white-space: nowrap; text-align: right; }
-  td.actions a { margin-right: 12px; }
-  button.delete { background: none; border: none; color: #b00020; cursor: pointer; font-size: 13px; padding: 0; }
-  .empty { color: #777; margin-top: 24px; }
-  .upload-link { display: inline-block; margin-top: 20px; padding: 10px 20px; background: #1b1b1b; color: white;
-    text-decoration: none; font-size: 14px; border-radius: 4px; }
-</style>
+<title>Saved Routes &mdash; CalTopo Viewshed</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
+<body class="routes-page">
 
-<h1>Route Viewshed</h1>
+<!--
+  Structure only -- style.css (see its docstring) is where the actual card
+  grid and contour background get built. Class hooks: .routes-page,
+  .route-grid, .route-card, .route-card__label, .route-card__meta,
+  .route-card__actions, .delete-btn, .empty-state, .upload-link.
+-->
+<h1>Saved Routes</h1>
 
 {% if routes %}
-<table>
-  <tr>
-    <th>Label</th>
-    <th>Computed</th>
-    <th>Distance</th>
-    <th></th>
-  </tr>
+<div class="route-grid">
   {% for r in routes %}
-  <tr>
-    <td>{{ r.label }}</td>
-    <td>{{ r.created_at[:16].replace('T', ' ') }}</td>
-    <td>{{ "%.2f"|format(r.total_distance_mi) }} mi</td>
-    <td class="actions">
+  <div class="route-card">
+    <div class="route-card__label">{{ r.label }}</div>
+    <div class="route-card__meta">
+      <span>{{ r.created_at[:16].replace('T', ' ') }}</span>
+      <span>{{ "%.2f"|format(r.total_distance_mi) }} mi</span>
+      <span>Eye height: {{ "%.1f"|format(r.eye_height_m) }} m</span>
+      <span>Step: {{ "%.2f"|format(r.step_distance_mi) }} mi</span>
+    </div>
+    <div class="route-card__actions">
       <a href="{{ url_for('results', route_id=r.route_id) }}">View</a>
-      <form style="display:inline" method="post" action="{{ url_for('delete_route', route_id=r.route_id) }}"
+      <form method="post" action="{{ url_for('delete_route', route_id=r.route_id) }}"
             onsubmit="return confirm('Delete route ‘' + {{ r.label|tojson }} + '’? This cannot be undone.');">
-        <button type="submit" class="delete">Delete</button>
+        <button type="submit" class="delete-btn">Delete</button>
       </form>
-    </td>
-  </tr>
+    </div>
+  </div>
   {% endfor %}
-</table>
+</div>
 {% else %}
-<p class="empty">No routes saved yet.</p>
+<p class="empty-state">No routes saved yet.</p>
 {% endif %}
 
-<a class="upload-link" href="/upload">Upload new route</a>
+<a class="upload-link" href="{{ url_for('upload_form') }}">Upload new route</a>
 
 </body>
 </html>

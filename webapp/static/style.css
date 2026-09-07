@@ -1,0 +1,62 @@
+/*
+ * Shared tokens + cosmetic pass for the title screen and routes page.
+ *
+ * Linked from title.html, about.html, and dashboard.html. The other
+ * templates (result.html, processing.html, upload.html, error.html) keep
+ * their own existing inline <style> blocks for now -- not part of this
+ * pass, left untouched on purpose.
+ *
+ * What to implement:
+ *
+ * 1. :root custom properties for the palette already used ad hoc
+ *    elsewhere in this project, so it stops being re-typed as raw hex
+ *    everywhere:
+ *      --charcoal:    #1b1b1b   (dark background / primary text, used
+ *                                 throughout: control bars, buttons, text)
+ *      --teal-accent: #3bffde   (viewshed fill color in the route viewer)
+ *      --pink-accent: #ff1ee5   (route line / observer marker color)
+ *      --peak-color:  #f5f11c   (named peak markers)
+ *      --lake-color:  #1752b8   (named lake markers)
+ *    Plus the font stack already repeated in every template's <style>:
+ *    -apple-system, sans-serif. A `body { font-family: ...; }` base rule
+ *    using it belongs here too, so title.html/about.html/dashboard.html
+ *    don't each need their own copy.
+ *
+ * 2. A reusable contour-line background treatment. This is the
+ *    centerpiece of the redesign -- a topographic-map motif (concentric,
+ *    irregular closed curves, like elevation contour lines) as a
+ *    repeating background pattern. A few ways to build it, roughly
+ *    easiest to hardest:
+ *      - `repeating-radial-gradient(...)` centered off to one side, for a
+ *        cheap approximation of contour rings using only CSS, no image.
+ *      - An inline SVG `<pattern>` with a handful of wavy `<path>`
+ *        elements, encoded as a `background-image: url("data:image/svg+xml,...")`.
+ *      - A hand-drawn SVG file saved under webapp/static/ and referenced
+ *        normally.
+ *    Apply it dark and fairly prominent on .title-page (against the
+ *    --charcoal background), and very low-opacity/faint on .routes-page
+ *    (so it doesn't fight the cards' readability) -- e.g. the same
+ *    background rule with a much lower opacity value, or layered under a
+ *    near-opaque light background color.
+ *
+ * 3. Title screen (title.html): .title-page (full-viewport dark
+ *    background using the treatment above), .title-hero (centers the
+ *    heading/tagline/buttons), .title-buttons (lays the two out side by
+ *    side or stacked), .title-button (a real clickable button look --
+ *    padding, border-radius, a hover state -- using --teal-accent).
+ *
+ * 4. Routes page (dashboard.html): .routes-page (light background with
+ *    the faint contour treatment from #2), .route-grid (a CSS grid or
+ *    flex-wrap layout of cards, responsive to viewport width),
+ *    .route-card (padding, border-radius, a subtle shadow, a light
+ *    background so it reads clearly over the faint contour pattern
+ *    behind it), .route-card__label (the route name, prominent),
+ *    .route-card__meta (the four data points -- date/distance/eye
+ *    height/step -- probably a smaller, muted font), .route-card__actions
+ *    (View link + Delete button, likely right-aligned or bottom-aligned
+ *    within the card), .delete-btn (matches the existing dashboard
+ *    delete-button look elsewhere in this project: text-only, --charcoal
+ *    or a red like #b00020, no visible border), .empty-state (the "No
+ *    routes saved yet." message), .upload-link (a real button, similar
+ *    treatment to .title-button).
+ */

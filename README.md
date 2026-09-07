@@ -28,7 +28,7 @@ source .venv/bin/activate
 python3 webapp/app.py
 ```
 
-This opens `http://127.0.0.1:5000` automatically. The dashboard lists routes you've already computed; "Upload new route" takes you to the form (eye height defaults to a generous 10m to allow for GPS/coordinate imprecision, step distance defaults to 0.5mi, and you can label the route). Computation takes roughly 10-15s per sample point (fetch + compute), runs in the background, and shows a live progress bar with an ETA rather than a blank "please wait" — each finished route is saved so you can revisit or delete it later.
+This opens `http://127.0.0.1:5000` automatically, at a title screen with two options: a page about the project, and the saved-routes dashboard. From the dashboard, "Upload new route" takes you to the form (eye height defaults to a generous 10m to allow for GPS/coordinate imprecision, step distance defaults to 0.5mi, and you can label the route). Computation takes roughly 10-15s per sample point (fetch + compute), runs in the background, and shows a live progress bar rather than a blank "please wait" — each finished route is saved (label, distance, eye height, and step distance all shown on its card) so you can revisit or delete it later.
 
 **[Try a live example](https://jacobburrill11.github.io/caltopo-viewshed/route_viewshed_viewer.html)** — a real ~1.5 mile trail near Lake Tahoe ([`examples/cinder_cone_trail.gpx`](examples/cinder_cone_trail.gpx)). Drag the slider and watch the visible area change as the position moves along the route, similar to CalTopo's own elevation-profile scrubber.
 

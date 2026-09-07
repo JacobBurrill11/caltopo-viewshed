@@ -38,6 +38,16 @@ app = Flask(__name__)
 
 
 @app.route("/")
+def title():
+    return render_template("title.html")
+
+
+@app.route("/about")
+def about():
+    return render_template("about.html")
+
+
+@app.route("/routes")
 def dashboard():
     return render_template("dashboard.html", routes=route_store.list_routes())
 
