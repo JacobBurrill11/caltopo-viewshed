@@ -208,7 +208,7 @@ def estimate_runtime(num_samples, seconds_per=SECONDS_PER_VIEWSHED_ESTIMATE):
 
 def export_route_viewsheds(route_utm_line, route_lonlat, distances, utm_crs,
                             max_radius_m, target_height_m, out_path,
-                            eye_height_m=EYE_HEIGHT_M):
+                            eye_height_m=EYE_HEIGHT_M, on_progress=None):
     """
     Compute a viewshed at every sample distance and write them all into one
     GeoJSON FeatureCollection: one Feature per sample (polygon + distance/
@@ -224,8 +224,14 @@ def export_route_viewsheds(route_utm_line, route_lonlat, distances, utm_crs,
     not treated as fatal for the whole route. If every sample fails,
     raises RuntimeError rather than silently writing a route-line-only
     GeoJSON that would look like a success.
+
+    on_progress, if given, is called as on_progress(completed, total) once
+    per sample -- whether that sample succeeded or was skipped -- right
+    after it's been handled, so a caller (the web app) can report progress
+    without this function knowing anything about Flask or HTTP.
     """
     features = []
+    total = len(distances)
 
     route_bbox = compute_required_bbox(route_lonlat, max_radius_m, utm_crs)
     try:
@@ -251,6 +257,8 @@ def export_route_viewsheds(route_utm_line, route_lonlat, distances, utm_crs,
                 obs = observer_from_point(dem, transform, nodata, x, y, eye_height_m)
                 if obs is None:
                     print(f"  skipping sample at mile {mile:.2f}: no elevation data")
+                    if on_progress:
+                        on_progress(i + 1, total)
                     continue
 
                 print(f"[{i + 1}/{len(distances)}] mile {mile:.2f}: computing viewshed...")
@@ -262,6 +270,8 @@ def export_route_viewsheds(route_utm_line, route_lonlat, distances, utm_crs,
                 geometry = polygonize_visibility(visibility, transform, utm_crs)
             except (ValueError, RuntimeError) as e:
                 print(f"  skipping sample at mile {mile:.2f}: DEM fetch failed ({e})")
+                if on_progress:
+                    on_progress(i + 1, total)
                 continue
             finally:
                 if os.path.exists(tmp_dem_path):
@@ -301,6 +311,8 @@ def export_route_viewsheds(route_utm_line, route_lonlat, distances, utm_crs,
                 },
                 "geometry": geometry,
             })
+            if on_progress:
+                on_progress(i + 1, total)
 
     if not features:
         raise RuntimeError(f"All {len(distances)} samples failed -- no viewshed could be computed")
