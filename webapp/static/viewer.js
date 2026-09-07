@@ -24,7 +24,16 @@ function stopPlaying() {
 function startPlaying() {
   const slider = document.getElementById('slider');
   playTimer = setInterval(() => {
-    const next = parseInt(slider.value, 10) + 1 > samples.length - 1 ? 0 : parseInt(slider.value, 10) + 1;
+    const current = parseInt(slider.value, 10);
+    if (current >= samples.length - 1) {
+      // Reached the end: show the final frame, then reset to the start and
+      // pause, rather than looping continuously.
+      slider.value = 0;
+      showSample(0);
+      stopPlaying();
+      return;
+    }
+    const next = current + 1;
     slider.value = next;
     showSample(next);
   }, PLAY_INTERVAL_MS);
