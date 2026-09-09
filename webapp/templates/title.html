@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CalTopo Viewshed</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="title-page">
+
+<!--
+  Structure only -- style.css is where the actual look gets built (see the
+  docstring comment at the top of that file for the intended dark
+  topo-contour treatment). The class names below (.title-page, .title-hero,
+  .title-buttons, .title-button) are the hooks to style against; nothing
+  here should need to change once the CSS is written.
+-->
+<div class="title-hero">
+  <h1>CalTopo Viewshed</h1>
+  <p class="title-tagline">See exactly what's visible from every point along a hiking route.</p>
+
+  <div class="title-buttons">
+    <a class="title-button" href="{{ url_for('about') }}">About This Project</a>
+    <a class="title-button" href="{{ url_for('dashboard') }}">View Saved Routes</a>
+  </div>
+</div>
+
+</body>
+</html>
