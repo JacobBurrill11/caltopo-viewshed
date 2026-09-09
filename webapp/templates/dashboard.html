@@ -27,9 +27,14 @@
     <div class="route-card__label">{{ r.label }}</div>
     <div class="route-card__meta">
       <span>{{ r.created_at[5:7] }}/{{ r.created_at[8:10] }}/{{ r.created_at[0:4] }}</span>
+      {% if r.kind == 'point' %}
+      <span>Lat/Lon: {{ "%.5f"|format(r.lat) }}, {{ "%.5f"|format(r.lon) }}</span>
+      <span>Eye height: {{ "%.1f"|format(r.eye_height_m) }} m</span>
+      {% else %}
       <span>{{ "%.2f"|format(r.total_distance_mi) }} mi</span>
       <span>Eye height: {{ "%.1f"|format(r.eye_height_m) }} m</span>
       <span>Step: {{ "%.2f"|format(r.step_distance_mi) }} mi</span>
+      {% endif %}
     </div>
     <div class="route-card__actions">
       <a href="{{ url_for('results', route_id=r.route_id) }}">View</a>
@@ -45,7 +50,7 @@
 <p class="empty-state">No routes saved yet.</p>
 {% endif %}
 
-<a class="upload-link" href="{{ url_for('upload_form') }}">Upload new route</a>
+<a class="upload-link" href="{{ url_for('upload_form') }}">New viewshed</a>
 
 </body>
 </html>

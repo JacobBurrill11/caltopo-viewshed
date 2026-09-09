@@ -68,18 +68,27 @@ def route_dir(route_id):
 
 
 def save_route_metadata(route_id, label, original_filename, eye_height_m,
-                         step_distance_mi, total_distance_mi, sample_count):
+                         step_distance_mi=None, total_distance_mi=None, sample_count=1,
+                         kind="route", lon=None, lat=None):
     """
     Create webapp/data/routes/<route_id>/ if it doesn't exist yet, and
     write metadata.json into it with:
         route_id, label, original_filename, created_at (ISO 8601 UTC,
         server-generated -- e.g. datetime.now(timezone.utc).isoformat()),
-        eye_height_m, step_distance_mi, total_distance_mi, sample_count
+        eye_height_m, step_distance_mi, total_distance_mi, sample_count,
+        kind, lon, lat
+
+    kind is "route" (default, backward-compatible with every route saved
+    before this field existed -- those files simply lack the key, and
+    callers should treat a missing/absent kind as "route") or "point" for
+    a single-point viewshed, which has no meaningful step/total distance
+    (left None) but does have a fixed lon/lat (None for route entries,
+    where the observer position varies along the route instead).
 
     Overwrites metadata.json if called again for an existing route_id.
     Returns None.
     """
-    
+
     os.makedirs(route_dir(route_id), exist_ok=True)
     metadata = {
         "route_id": route_id,
@@ -90,6 +99,9 @@ def save_route_metadata(route_id, label, original_filename, eye_height_m,
         "step_distance_mi": step_distance_mi,
         "total_distance_mi": total_distance_mi,
         "sample_count": sample_count,
+        "kind": kind,
+        "lon": lon,
+        "lat": lat,
     }
     metadata_path = os.path.join(route_dir(route_id), "metadata.json")
     with open(metadata_path, "w", encoding="utf-8") as f:
