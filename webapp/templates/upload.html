@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Route Viewshed</title>
+<title>New Viewshed</title>
 <style>
   body { font-family: -apple-system, sans-serif; max-width: 480px; margin: 60px auto; color: #1b1b1b; }
   h1 { font-size: 20px; }
   label { display: block; margin-top: 16px; font-size: 14px; }
-  input[type=file], input[type=number], input[type=text] { display: block; margin-top: 6px; width: 100%;
+  input[type=file], input[type=number], input[type=text], select { display: block; margin-top: 6px; width: 100%;
     box-sizing: border-box; padding: 6px; font-size: 14px; }
   button { margin-top: 24px; padding: 10px 20px; font-size: 15px; cursor: pointer; }
   button:disabled { cursor: not-allowed; opacity: 0.6; }
@@ -17,20 +17,48 @@
 </head>
 <body>
 
-<h1>Route Viewshed</h1>
+<h1>New Viewshed</h1>
 <p><a href="{{ url_for('dashboard') }}">&larr; Saved routes</a></p>
-<p>Upload a GPX track. The DEM, reprojection, and viewshed computation all happen automatically.</p>
+<p>Compute a viewshed from a GPX route, or from a single point.</p>
 
 <form id="upload-form" action="/run" method="post" enctype="multipart/form-data">
   <label>
-    GPX file
-    <input type="file" name="gpx" accept=".gpx" required>
+    Mode
+    <select name="mode" id="mode-select">
+      <option value="route" selected>Route from a GPX file</option>
+      <option value="point">Single point</option>
+    </select>
   </label>
+
+  <div id="route-fields">
+    <label>
+      GPX file
+      <input type="file" name="gpx" accept=".gpx" required>
+    </label>
+
+    <label>
+      Step distance (miles)
+      <input type="number" name="step_distance_mi" value="0.5" step="0.05" min="0.01">
+      <span class="hint">How far apart the sample points are along the route. Default 0.5 miles.</span>
+    </label>
+  </div>
+
+  <div id="point-fields" hidden>
+    <label>
+      Latitude
+      <input type="number" name="lat" step="any" min="-90" max="90" placeholder="e.g. 36.56334">
+    </label>
+
+    <label>
+      Longitude
+      <input type="number" name="lon" step="any" min="-180" max="180" placeholder="e.g. -118.27849">
+    </label>
+  </div>
 
   <label>
     Label (optional)
     <input type="text" name="label" placeholder="e.g. Mt. Whitney Summit">
-    <span class="hint">Defaults to the GPX filename if left blank.</span>
+    <span class="hint">Defaults to the GPX filename (or the coordinates, for a single point) if left blank.</span>
   </label>
 
   <label>
@@ -39,17 +67,38 @@
     <span class="hint">Default 10m &mdash; deliberately more generous than a standing person's eye level, to allow for GPS/coordinate imprecision.</span>
   </label>
 
-  <label>
-    Step distance (miles)
-    <input type="number" name="step_distance_mi" value="0.5" step="0.05" min="0.01">
-    <span class="hint">How far apart the sample points are along the route. Default 0.5 miles.</span>
-  </label>
-
   <button type="submit" id="submit-btn">Compute viewshed</button>
   <div id="processing">Uploading&hellip;</div>
 </form>
 
 <script>
+const modeSelect = document.getElementById('mode-select');
+const routeFields = document.getElementById('route-fields');
+const pointFields = document.getElementById('point-fields');
+const gpxInput = routeFields.querySelector('input[name=gpx]');
+const latInput = pointFields.querySelector('input[name=lat]');
+const lonInput = pointFields.querySelector('input[name=lon]');
+
+function applyMode() {
+  const isPoint = modeSelect.value === 'point';
+
+  // hidden controls visibility; disabled is what actually keeps a
+  // section's inputs out of the POST body -- that's the real
+  // mutual-exclusivity mechanism, not just hiding them.
+  routeFields.hidden = isPoint;
+  pointFields.hidden = !isPoint;
+
+  gpxInput.disabled = isPoint;
+  gpxInput.required = !isPoint;
+  latInput.disabled = !isPoint;
+  latInput.required = isPoint;
+  lonInput.disabled = !isPoint;
+  lonInput.required = isPoint;
+}
+
+modeSelect.addEventListener('change', applyMode);
+applyMode();
+
 document.getElementById('upload-form').addEventListener('submit', () => {
   document.getElementById('submit-btn').disabled = true;
   document.getElementById('processing').style.display = 'block';

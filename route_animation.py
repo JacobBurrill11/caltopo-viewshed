@@ -333,6 +333,103 @@ def export_route_viewsheds(route_utm_line, route_lonlat, distances, utm_crs,
     print(f"Wrote {out_path} ({len(features) - 1} viewshed samples + 1 route line)")
 
 
+def export_point_viewshed(lon, lat, max_radius_m, target_height_m, out_path,
+                           eye_height_m=EYE_HEIGHT_M, utm_crs=None):
+    """
+    Compute a single-point viewshed and write it as a one-Feature GeoJSON
+    FeatureCollection, in the exact same Feature property shape a sample
+    in export_route_viewsheds' output uses (index, distance_m/distance_mi
+    both 0.0, lon, lat, elevation_m, visible_features) -- so this can be
+    served under the same route_viewsheds.geojson filename and rendered by
+    the same result.html/viewer.js with no structural changes. No "route"
+    LineString Feature is written; viewer.js already falls back to
+    map.setView() centered on the single sample when one isn't present.
+
+    Deliberately duplicates (rather than factors out a shared helper with)
+    export_route_viewsheds' per-sample body -- the two differ enough (mile
+    bookkeeping vs. none) that a shared interface would be more awkward
+    than the ~30 lines this saves, and this keeps zero regression risk to
+    the already-tested route pipeline, which is untouched.
+
+    Raises RuntimeError if the DEM fetch fails or the point falls on
+    nodata -- there's no "skip this sample and continue" fallback for a
+    single point the way there is for a route.
+    """
+    utm_crs = utm_crs or utm_crs_from_lonlat(lon, lat)
+
+    route_bbox = compute_required_bbox([(lon, lat)], max_radius_m, utm_crs)
+    try:
+        named_features = fetch_named_features(
+            (route_bbox["min_lon"], route_bbox["min_lat"], route_bbox["max_lon"], route_bbox["max_lat"])
+        )
+    except RuntimeError as e:
+        print(f"  named feature lookup failed, continuing without peaks/lakes ({e})")
+        named_features = []
+
+    with tempfile.TemporaryDirectory(prefix="viewshed_scratch_") as scratch_dir:
+        tmp_dem_path = os.path.join(scratch_dir, "point.tif")
+        try:
+            fetch_and_reproject_dem([(lon, lat)], max_radius_m, utm_crs, tmp_dem_path)
+            dem, transform, _crs, pixel_size_m, nodata = load_dem(tmp_dem_path)
+
+            x, y = warp_transform("EPSG:4326", utm_crs, [lon], [lat])
+            obs = observer_from_point(dem, transform, nodata, x[0], y[0], eye_height_m)
+            if obs is None:
+                raise RuntimeError("no elevation data at that point")
+
+            visibility = compute_viewshed(
+                dem, transform, pixel_size_m,
+                obs["row"], obs["col"], obs["observer_z"],
+                max_radius_m, target_height_m, nodata,
+            )
+            geometry = polygonize_visibility(visibility, transform, utm_crs)
+        finally:
+            if os.path.exists(tmp_dem_path):
+                os.remove(tmp_dem_path)
+
+    sample_polygon = shape(geometry)
+    visible_features = [
+        f for f in named_features
+        if sample_polygon.contains(Point(f["lon"], f["lat"]))
+    ]
+
+    peaks, lakes = [], []
+    for f in visible_features:
+        (peaks if f["type"] == "peak" else lakes).append(f)
+
+    ranked_peaks = []
+    for f in peaks:
+        peak_x, peak_y = warp_transform("EPSG:4326", utm_crs, [f["lon"]], [f["lat"]])
+        peak_row, peak_col = coords_to_pixel(peak_x[0], peak_y[0], transform)
+        peak_elevation = bilinear_interpolate(dem, peak_row, peak_col, nodata)
+        if peak_elevation is not None:
+            ranked_peaks.append((peak_elevation, f))
+    ranked_peaks.sort(key=lambda pair: pair[0], reverse=True)
+
+    visible_features = [f for _, f in ranked_peaks[:PEAK_LIMIT]] + lakes
+
+    feature_collection = {
+        "type": "FeatureCollection",
+        "features": [{
+            "type": "Feature",
+            "properties": {
+                "index": 0,
+                "distance_m": 0.0,
+                "distance_mi": 0.0,
+                "elevation_m": float(obs["ground_z"]),
+                "lon": lon,
+                "lat": lat,
+                "visible_features": visible_features,
+            },
+            "geometry": geometry,
+        }],
+    }
+    with open(out_path, "w") as f:
+        json.dump(feature_collection, f)
+
+    print(f"Wrote {out_path} (1 point viewshed)")
+
+
 # ---------------------------------------------------------------------------
 # 4. CLI entry point
 # ---------------------------------------------------------------------------
