@@ -38,7 +38,7 @@
 
     <label>
       Step distance (miles)
-      <input type="number" name="step_distance_mi" value="0.5" step="0.05" min="0.01">
+      <input type="number" name="step_distance_mi" value="0.5" step="0.05" min="0.05">
       <span class="hint">How far apart the sample points are along the route. Default 0.5 miles.</span>
     </label>
   </div>
@@ -88,11 +88,19 @@ function applyMode() {
   routeFields.hidden = isPoint;
   pointFields.hidden = !isPoint;
 
-  gpxInput.disabled = isPoint;
+  // Disable EVERY input in the inactive section, not just the ones named
+  // individually below -- a hidden-but-still-enabled field (e.g.
+  // step_distance_mi, missed here originally) can fail its own HTML5
+  // constraint validation (its default value can violate its own `step`
+  // attribute) and, being unfocusable while hidden, silently block the
+  // whole form's submission with nothing but a browser console warning --
+  // no visible error of any kind. Blanket-disabling avoids this recurring
+  // if a field is ever added to either section without updating this list.
+  routeFields.querySelectorAll('input').forEach(el => { el.disabled = isPoint; });
+  pointFields.querySelectorAll('input').forEach(el => { el.disabled = !isPoint; });
+
   gpxInput.required = !isPoint;
-  latInput.disabled = !isPoint;
   latInput.required = isPoint;
-  lonInput.disabled = !isPoint;
   lonInput.required = isPoint;
 }
 
