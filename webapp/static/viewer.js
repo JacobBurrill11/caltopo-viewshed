@@ -67,9 +67,13 @@ function showSample(i) {
     }).bindTooltip(f.name))
   ).addTo(map);
 
-  document.getElementById('readout').textContent =
-    `Mile ${sample.properties.distance_mi.toFixed(2)} of ${samples[samples.length - 1].properties.distance_mi.toFixed(2)}` +
-    ` — ${Math.round(sample.properties.elevation_m)} m elevation`;
+  // A single-point viewshed (no route line, just one sample) has no
+  // meaningful "Mile X of Y" -- the slider/scrubber framing only makes
+  // sense once there's more than one sample to move between.
+  document.getElementById('readout').textContent = samples.length > 1
+    ? `Mile ${sample.properties.distance_mi.toFixed(2)} of ${samples[samples.length - 1].properties.distance_mi.toFixed(2)}` +
+      ` — ${Math.round(sample.properties.elevation_m)} m elevation`
+    : `${Math.round(sample.properties.elevation_m)} m elevation`;
 }
 
 fetch(`/results/${window.ROUTE_ID}/route_viewsheds.geojson`)
@@ -108,17 +112,22 @@ fetch(`/results/${window.ROUTE_ID}/route_viewsheds.geojson`)
     document.getElementById('feature-panel-summary').textContent =
       `Named features along this route (${aggregateList.length})`;
 
-    const slider = document.getElementById('slider');
-    slider.max = samples.length - 1;
-    slider.disabled = false;
-    slider.addEventListener('input', () => {
-      stopPlaying(); // manual scrubbing shouldn't fight with an active playback timer
-      showSample(parseInt(slider.value, 10));
-    });
+    // A single sample (a point viewshed) has nothing to scrub or play
+    // between -- leave the slider/play button disabled rather than wiring
+    // up controls that would drag a zero-range slider or "play" one frame.
+    if (samples.length > 1) {
+      const slider = document.getElementById('slider');
+      slider.max = samples.length - 1;
+      slider.disabled = false;
+      slider.addEventListener('input', () => {
+        stopPlaying(); // manual scrubbing shouldn't fight with an active playback timer
+        showSample(parseInt(slider.value, 10));
+      });
 
-    const playBtn = document.getElementById('play-btn');
-    playBtn.disabled = false;
-    playBtn.addEventListener('click', () => (playTimer ? stopPlaying() : startPlaying()));
+      const playBtn = document.getElementById('play-btn');
+      playBtn.disabled = false;
+      playBtn.addEventListener('click', () => (playTimer ? stopPlaying() : startPlaying()));
+    }
 
     document.getElementById('status').style.display = 'none';
     if (samples.length) showSample(0);

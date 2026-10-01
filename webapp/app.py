@@ -25,6 +25,7 @@ import route_store
 from route_animation import (
     MAX_RADIUS_M,
     TARGET_HEIGHT_M,
+    export_point_viewshed,
     export_route_viewsheds,
     load_route_points,
     route_to_utm_linestring,
@@ -59,7 +60,25 @@ def upload_form():
 
 @app.route("/run", methods=["POST"])
 def run_pipeline():
+    mode = request.form.get("mode", "route")
+
     upload = request.files.get("gpx")
+    has_gpx = bool(upload and upload.filename)
+    has_point = bool(request.form.get("lat", "").strip() or request.form.get("lon", "").strip())
+    if has_gpx and has_point:
+        # Shouldn't be reachable through the real form -- the mode dropdown
+        # disables whichever section isn't active, so a browser submission
+        # never carries both. Guards against a hand-crafted request or a
+        # JS failure doing so anyway, regardless of which `mode` was sent.
+        return render_template("error.html", message="Submitted both a GPX file and a lat/lon "
+                                                       "point -- pick one or the other."), 400
+
+    if mode == "point":
+        return _run_point()
+    return _run_route(upload)
+
+
+def _run_route(upload):
     if not upload or upload.filename == "":
         return render_template("error.html", message="No GPX file was uploaded."), 400
 
@@ -117,6 +136,47 @@ def run_pipeline():
             route_id, label, upload.filename, eye_height_m, step_distance_mi,
             total_distance_mi=distances[-1] / MILES_TO_METERS,
             sample_count=len(distances),
+        )
+        progress_store.finish(route_id)
+
+    threading.Thread(target=run_in_background, daemon=True).start()
+
+    return redirect(url_for("processing", route_id=route_id))
+
+
+def _run_point():
+    try:
+        lat = float(request.form.get("lat", ""))
+        lon = float(request.form.get("lon", ""))
+    except ValueError:
+        return render_template("error.html", message="Latitude and longitude must both be numbers."), 400
+
+    if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+        return render_template("error.html", message="Latitude must be between -90 and 90, "
+                                                       "longitude between -180 and 180."), 400
+
+    label = request.form.get("label", "").strip() or f"Point ({lat:.4f}, {lon:.4f})"
+    eye_height_m = float(request.form.get("eye_height_m", 10.0))
+
+    route_id = route_store.generate_route_id()
+    this_dir = route_store.route_dir(route_id)
+    os.makedirs(this_dir, exist_ok=True)
+
+    progress_store.start(route_id, 1)
+
+    def run_in_background():
+        out_path = os.path.join(this_dir, "route_viewsheds.geojson")
+        try:
+            export_point_viewshed(lon, lat, MAX_RADIUS_M, TARGET_HEIGHT_M, out_path,
+                                   eye_height_m=eye_height_m)
+        except (ValueError, RuntimeError) as e:
+            progress_store.fail(route_id, str(e))
+            route_store.delete_route(route_id)
+            return
+
+        route_store.save_route_metadata(
+            route_id, label, None, eye_height_m,
+            kind="point", lon=lon, lat=lat, sample_count=1, total_distance_mi=0.0,
         )
         progress_store.finish(route_id)
 
